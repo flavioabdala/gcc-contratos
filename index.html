@@ -11,31 +11,30 @@
   <div id="auth-section">
     <input type="email" id="email" placeholder="Email" />
     <input type="password" id="password" placeholder="Senha" />
-    <button id="login-btn">Login</button>
-    <button id="register-btn">Registrar</button>
-    <button id="logout-btn" style="display:none;">Sair</button>
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Registrar</button>
+    <button onclick="logout()" id="logout-btn" style="display:none;">Sair</button>
   </div>
 
-  <div id="app-section" style="display:none;">
-    <h2>Registrar Contrato</h2>
-    <input type="text" id="empresa" placeholder="Nome da Empresa" />
-    <input type="text" id="objeto" placeholder="Objeto da Contratação" />
-    <button id="add-contrato">Adicionar Contrh3>Contratos Registrados</h3>
+  < Contrato</button>
+
+    <h3>Contratos Registrados</h3>
     <ul id="lista-contratos"></ul>
 
     <h2>Meus Lembretes</h2>
     <input type="text" id="lembrete" placeholder="Novo Lembrete" />
-    <button id="add-lembrete">Adicionar Lembrete</button>
+    <button onclick="adicionarLembrete()">Adicionar Lembrete</button>
 
     <h3>Lembretes</h3>
     <ul id="lista-lembretes"></ul>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
-    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js";
-    import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js";
+  <!-- Firebase SDKs -->
+  https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js
+  https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js
+  https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js
 
+  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw",
       authDomain: "gcc-contratos.firebaseapp.com",
@@ -46,104 +45,100 @@
       measurementId: "G-T1T4N9WD5T"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
-    const email = document.getElementById("email");
-    const password = document.getElementById("password");
-    const loginBtn = document.getElementById("login-btn");
-    const registerBtn = document.getElementById("register-btn");
-    const logoutBtn = document.getElementById("logout-btn");
-    const authSection = document.getElementById("auth-section");
-    const appSection = document.getElementById("app-section");
-
-    const empresa = document.getElementById("empresa");
-    const objeto = document.getElementById("objeto");
-    const addContrato = document.getElementById("add-contrato");
-    const listaContratos = document.getElementById("lista-contratos");
-
-    const lembrete = document.getElementById("lembrete");
-    const addLembrete = document.getElementById("add-lembrete");
-    const listaLembretes = document.getElementById("lista-lembretes");
-
-    loginBtn.onclick = () => {
-      signInWithEmailAndPassword(auth, email.value, password.value)
-        .catch(err => alert("Erro no login: " + err.message));
-    };
-
-    registerBtn.onclick = () => {
-      createUserWithEmailAndPassword(auth, email.value, password.value)
-        .catch(err => alert("Erro no registro: " + err.message));
-    };
-
-    logoutBtn.onclick = () => {
-      signOut(auth);
-    };
-
-    onAuthStateChanged(auth, user => {
+    auth.onAuthStateChanged(user => {
       if (user) {
-        authSection.style.display = "none";
-        appSection.style.display = "block";
-        logoutBtn.style.display = "inline";
-        carregarContratos(user.uid);
-        carregarLembretes(user.uid);
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("app-section").style.display = "block";
+        document.getElementById("logout-btn").style.display = "inline";
+        carregarContratos();
+        carregarLembretes();
       } else {
-        authSection.style.display = "block";
-        appSection.style.display = "none";
-        logoutBtn.style.display = "none";
+        document.getElementById("auth-section").style.display = "block";
+        document.getElementById("app-section").style.display = "none";
+        document.getElementById("logout-btn").style.display = "none";
       }
     });
 
-    addContrato.onclick = async () => {
+    function login() {
+      const email = document.getElementById("email").value;
+      const senha = document.getElementById("password").value;
+      auth.signInWithEmailAndPassword(email, senha)
+        .catch(error => alert("Erro no login: " + error.message));
+    }
+
+    function register() {
+      const email = document.getElementById("email").value;
+      const senha = document.getElementById("password").value;
+      auth.createUserWithEmailAndPassword(email, senha)
+        .catch(error => alert("Erro no registro: " + error.message));
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+
+    function adicionarContrato() {
+      const empresa = document.getElementById("empresa").value;
+      const objeto = document.getElementById("objeto").value;
       const user = auth.currentUser;
       if (!user) return;
 
-      await addDoc(collection(db, "contratos"), {
+      db.collection("contratos").add({
         uid: user.uid,
-        empresa: empresa.value,
-        objeto: objeto.value,
+        empresa: empresa,
+        objeto: objeto,
         timestamp: Date.now()
-      });
-
-      empresa.value = "";
-      objeto.value = "";
-      carregarContratos(user.uid);
-    };
-
-    async function carregarContratos(uid) {
-      listaContratos.innerHTML = "";
-      const q = query(collection(db, "contratos"), where("uid", "==", uid));
-      const snapshot = await getDocs(q);
-      snapshot.forEach(doc => {
-        const li = document.createElement("li");
-        li.textContent = `${doc.data().empresa} - ${doc.data().objeto}`;
-        listaContratos.appendChild(li);
+      }).then(() => {
+        document.getElementById("empresa").value = "";
+        document.getElementById("objeto").value = "";
+        carregarContratos();
       });
     }
 
-    addLembrete.onclick = async () => {
+    function carregarContratos() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const lista = document.getElementById("lista-contratos");
+      lista.innerHTML = "";
+      db.collection("contratos").where("uid", "==", user.uid).get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const li = document.createElement("li");
+          li.textContent = doc.data().empresa + " - " + doc.data().objeto;
+          lista.appendChild(li);
+        });
+      });
+    }
+
+    function adicionarLembrete() {
+      const texto = document.getElementById("lembrete").value;
       const user = auth.currentUser;
       if (!user) return;
 
-      await addDoc(collection(db, "lembretes"), {
+      db.collection("lembretes").add({
         uid: user.uid,
-        texto: lembrete.value,
+        texto: texto,
         timestamp: Date.now()
+      }).then(() => {
+        document.getElementById("lembrete").value = "";
+        carregarLembretes();
       });
+    }
 
-      lembrete.value = "";
-      carregarLembretes(user.uid);
-    };
-
-    async function carregarLembretes(uid) {
-      listaLembretes.innerHTML = "";
-      const q = query(collection(db, "lembretes"), where("uid", "==", uid));
-      const snapshot = await getDocs(q);
-      snapshot.forEach(doc => {
-        const li = document.createElement("li");
-        li.textContent = doc.data().texto;
-        listaLembretes.appendChild(li);
+    function carregarLembretes() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const lista = document.getElementById("lista-lembretes");
+      lista.innerHTML = "";
+      db.collection("lembretes").where("uid", "==", user.uid).get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const li = document.createElement("li");
+          li.textContent = doc.data().texto;
+          lista.appendChild(li);
+        });
       });
     }
   </script>
