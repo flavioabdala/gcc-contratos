@@ -1,22 +1,51 @@
-Ôªø<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Gest√£o de Contratos</title>
+  <titletitle>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    input, button {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      width: 100%;
+      max-width: 400px;
+    }
+    ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    li {
+      background: #f0f0f0;
+      margin: 0.3rem 0;
+      padding: 0.5rem;
+    }
+  </style>
 </head>
 <body>
-  <h1>Gest√£o de Contratos</h1>
+  <h1>Gest„o de Contratos</h1>
 
   <div id="auth-section">
-    <input type="email" id="email" placeholder="Email" />
+    <input type="email" id" placeholder="Email" />
     <input type="password" id="password" placeholder="Senha" />
     <button onclick="login()">Login</button>
     <button onclick="register()">Registrar</button>
-    <button onclick="logout()" id="logout-btn" style="display:none;">Sair</button>
   </div>
 
-  < Contrato</button>
+  <div id="app-section" style="display:none;">
+    <button onclick="logout()">Sair</button>
+
+    <h2>Registrar Contrato</h2>
+    <input type="text" id="empresa" placeholder="Nome da Empresa" />
+    <input type="text" id="objeto" placeholder="Objeto da ContrataÁ„o" />
+    <button onclick="adicionarContrato()">Adicionar Contrato</button>
 
     <h3>Contratos Registrados</h3>
     <ul id="lista-contratos"></ul>
@@ -53,13 +82,11 @@
       if (user) {
         document.getElementById("auth-section").style.display = "none";
         document.getElementById("app-section").style.display = "block";
-        document.getElementById("logout-btn").style.display = "inline";
         carregarContratos();
         carregarLembretes();
       } else {
         document.getElementById("auth-section").style.display = "block";
         document.getElementById("app-section").style.display = "none";
-        document.getElementById("logout-btn").style.display = "none";
       }
     });
 
