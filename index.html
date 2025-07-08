@@ -1,1266 +1,151 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestão de Contratos e Lembretes</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Estilos personalizados para a fonte Inter */
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Animação de piscar para contratos vencendo */
-        @keyframes pulse-red {
-            0%, 100% { border-color: #ef4444; } /* red-500 */
-            50% { border-color: #f87171; } /* red-400 */
-        }
-        .animate-pulse-red {
-            animation: pulse-red 1.5s infinite;
-        }
-
-        /* Estilos para o modal de alerta e confirmação */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-            width: 90%;
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestão de Contratos</title>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
-
-    <div id="loading-spinner" class="fixed inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="flex flex-col items-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500"></div> <p class="mt-4 text-gray-700 text-lg">A carregar...</p>
-        </div>
-    </div>
-
-    <div id="customAlertModal" class="modal-overlay hidden">
-        <div class="modal-content border border-yellow-400">
-            <div class="flex items-center justify-center mb-4">
-                <span class="text-yellow-500 text-4xl mr-3">⚠️</span>
-                <h5 class="text-2xl font-bold text-gray-800">Atenção!</h5>
-            </div>
-            <div id="alertMessages" class="mb-6"></div>
-            <button id="alertCloseButton" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-full shadow-lg 
-transition duration-300 ease-in-out">
-                OK
-            </button>
-        </div>
-    </div>
-
-    <div id="customConfirmModal" class="modal-overlay hidden">
-        <div class="modal-content border border-red-500">
-            <div class="flex items-center justify-center mb-4">
-                <span class="text-red-500 text-4xl mr-3">❓</span>
-                <h5 class="text-2xl font-bold text-gray-800">Confirmação</h5>
-            </div>
-            <p id="confirmMessage" class="text-gray-700 text-base mb-8"></p>
-            <div class="flex justify-center space-x-4">
-                <button id="confirmCancelButton" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 ease-in-out">
-                    Cancelar
-                </button>
-                <button id="confirmActionButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 ease-in-out">
-                    Confirmar
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-800 p-4"> <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-            <h2 id="auth-title" class="text-4xl font-extrabold text-center text-gray-800 mb-2">Bem-vindo!</h2>
-            <p class="text-center text-gray-600 text-lg mb-8">Gestão de Contratos</p>
-
-            <div class="mb-4">
-                <input
-                    id="auth-email"
-                    class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Email"
-                    type="email"
-                    autocapitalize="none"
-                    autocomplete="email"
-                />
-            </div>
-            <div class="mb-6">
-                <input
-                    id="auth-password"
-                    class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Palavra-passe"
-                    type="password"
-                    autocomplete="current-password"
-                />
-            </div>
-            <div id="register-fields" class="hidden">
-                <div class="mb-4">
-                    <input
-                        id="auth-fullName"
-                        class="w-full 
-px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome Completo"
-                        autocomplete="name"
-                    />
-                </div>
-                <div class="mb-4">
-                    <input
-                        id="auth-cpf"
-                        class="w-full 
-px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="CPF"
-                        inputmode="numeric"
-                    />
-                </div>
-                <div class="mb-6">
-                    <input
-                        id="auth-phone"
-                        class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Telefone de Contacto"
-                        inputmode="tel"
-                        autocomplete="tel"
-                    />
-                </div>
-            </div>
-            <div class="flex justify-end">
-                <button
-                    id="auth-action-button"
-                    class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105" >
-                    Login
-                </button>
-            </div>
-            <button
-                id="toggle-auth-mode-button"
-                class="w-full mt-6 text-purple-600 hover:text-purple-800 
-font-semibold text-center" >
-                Não tem uma conta? Registe-se
-            </button>
-        </div>
-    </div>
-
-    <div id="main-app-content" class="hidden flex-1 flex flex-col">
-        <header class="bg-white shadow-md p-4 mb-4 rounded-b-3xl">
-            <div class="flex flex-col sm:flex-row justify-between items-center">
-                <div class="flex items-center mb-3 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-purple-700 mr-4">Gestão de Contratos</h1> <span class="text-gray-600 hidden md:block text-sm">
-                        <span id="user-email-display"></span> (<span id="user-role-display"></span>) - UID: <span id="user-id-display"></span>
-                    </span>
-                </div>
-                <nav class="flex flex-wrap justify-center sm:justify-end gap-2">
-                    <button
-                        id="nav-list-button"
-                        class="px-4 py-2 rounded-lg font-semibold transition duration-200 bg-purple-600 text-white shadow-md" >
-                        Contratos
-                    </button>
-                    <button
-                        id="nav-register-button"
-                        class="px-4 py-2 rounded-lg font-semibold transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    >
-                        Registrar Contrato
-                    </button>
-                    <button
-                        id="nav-reminders-button"
-                        class="px-4 py-2 rounded-lg font-semibold transition duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300"
-                    >
-                        Lembretes
-                    </button>
-                    <button
-                        id="logout-button"
-                        class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200"
-                    >
-                        Sair
-                    </button>
-                </nav>
-            </div>
-        </header>
-
-        <main class="container mx-auto px-4 py-6 flex-1">
-            <section id="contracts-list-section" class="mb-8 p-6 bg-white rounded-2xl shadow-lg">
-                <h2 class="text-3xl font-bold text-gray-800 text-center mb-6">Lista de Contratos</h2>
-                <div id="contracts-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <p class="col-span-full text-center text-gray-600 text-lg">Nenhum contrato encontrado.
-Clique em "Registrar Contrato" para adicionar um novo.</p>
-                </div>
-            </section>
-
-            <section id="register-contract-section" class="hidden mb-8 p-6 bg-white rounded-2xl shadow-lg max-w-3xl mx-auto">
-                <h2 id="register-contract-title" class="text-3xl font-bold text-gray-800 text-center mb-6">Registrar Novo Contrato</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 
-gap-6 mb-6">
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Processo SEI:</label>
-                        <input id="input-processoSCEI" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ex: 12345.67890/2023-00" /> </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Nome da Empresa:</label>
-                        <input id="input-nomeEmpresa" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nome Completo da Empresa" /> </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Objeto da Contratação:</label>
-                        <textarea id="input-objetoContratacao" class="w-full px-4 py-2 border 
-border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 h-24 resize-y" placeholder="Detalhes do que está sendo contratado"></textarea> </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Número do Contrato:</label>
-                        <input id="input-numeroContrato" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ex: 001/2023" /> </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Início Vigência Total:</label>
-                        <input type="date" id="input-inicioVigenciaTotal" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Momento Atual do Contrato:</label>
-                        <select id="select-momentoAtual" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"> </select>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Término Atual do Contrato:</label>
-                        <input type="date" id="input-terminoAtualContrato" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" /> </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Tipo de Lei:</label>
-                        <select id="select-lawType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"> </select>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Valor do Contrato (R$):</label>
-                        <input id="input-valorContrato" 
-class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ex: 1.234.567,89" inputmode="decimal" /> </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Unidades Participantes:</label>
-                        <div id="unidades-checkboxes" class="flex flex-wrap gap-2">
-                        </div>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-gray-700 text-sm font-semibold mb-2">Últimas Movimentações:</label>
-                        <textarea id="input-ultimasMovimentacoes" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 h-32 resize-y" placeholder="Histórico de movimentações do contrato"></textarea> </div>
-                </div>
-                <button id="add-update-contract-button" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 mb-4"> Adicionar Contrato
-                </button>
-                <button id="cancel-edit-button" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 hidden">
-                    Cancelar Edição
-                </button>
-            </section>
-
-            <section id="reminders-section" class="hidden mb-8 p-6 bg-white rounded-2xl shadow-lg max-w-2xl mx-auto">
-                <h2 class="text-3xl font-bold text-gray-800 text-center mb-6">Meus Lembretes</h2>
-                <div class="mb-6">
-                    <label class="block text-gray-700 text-sm font-semibold mb-2">Novo Lembrete:</label>
-                    <input id="input-reminderText" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-3" placeholder="Texto do lembrete" /> <input type="date" id="input-reminderDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-4" /> <button id="add-reminder-button" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
-                        Adicionar Lembrete
-                    </button>
-                </div>
-
-                <h3 class="text-xl font-bold text-gray-800 border-t pt-6 mt-6">Lembretes Existentes:</h3>
-                <ul id="reminders-list" class="space-y-4 mt-4">
-                    <p class="text-center text-gray-600 text-lg mt-4">Nenhum lembrete adicionado ainda.</p>
-                </ul>
-            </section>
-        </main>
-    </div>
-
-    <script type="module">
-        // Importa os módulos necessários do Firebase a partir de CDNs
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // Importante: Adicione 'setPersistence' e 'inMemoryPersistence' aqui
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, Timestamp, doc, updateDoc, setDoc, deleteDoc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // <<< Adicionei 'query', 'where', 'getDocs' aqui
-
-        // --- Firebase Configuration Variables ---
-        // AS SUAS CREDENCIAIS FIREBASE REAIS - OBTIDAS DO SEU CONSOLE FIREBASE.
-        // VOCÊ DEVE SUBSTITUIR TODO O BLOCO 'const firebaseConfig = { ... }' ABAIXO
-        // PELAS SUAS PRÓPRIAS CREDENCIAIS.
-        const firebaseConfig = {
-            apiKey: "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw", // Ex: "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw"
-            authDomain: "gcc-contratos.firebaseapp.com", // Ex: "gcc-contratos.firebaseapp.com"
-            projectId: "gcc-contratos", // Ex: "gcc-contratos"
-            storageBucket: "gcc-contratos.firebaseapp.com", // <<<< CORRIGIDO AQUI!
-            messagingSenderId: "405415511927", // Ex: "405415511927"
-            appId: "1:405415511927:web:4612190119302726820372", // Ex: "1:405415511927:web:4612190119302726820372"
-        };
-        // O appId será o mesmo que o projectId para consistência com as coleções do Firestore.
-        const appId = firebaseConfig.projectId; // Define appId com o projectId real do seu firebaseConfig
-
-        // --- Firebase Setup and Initialization ---
-        let app;
-        let db;
-        let auth;
-        let userId = '';
-        let userEmail = '';
-        let isAdmin = false;
-        let isLoggedIn = false;
-        let currentEditingContract = null; // Stores the contract being edited
-
-        // --- Global State Variables (MOVIDAS PARA CIMA PARA INICIALIZAÇÃO PRECOCE) ---
-        // Estas devem ser inicializadas antes de qualquer função que possa chamar displayAlert ou displayConfirm
-        let currentAlertMessages = [];
-        let currentConfirmAction = null;
-        
-        // Inicializa o Firebase apenas se as credenciais forem válidas
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw") {
-          try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                console.log("Firebase inicializado com sucesso.");
-                // Configura a persistência para 'inMemoryPersistence' para não persistir o login entre sessões.
-                // Se quiser que o login persista enquanto o navegador estiver aberto (sessão), use 'browserSessionPersistence'.
-                setPersistence(auth, inMemoryPersistence) // <<< CORRIGIDO AQUI!
-                    .then(() => console.log("Persistência de autenticação definida para 'inMemoryPersistence'."))
-                    .catch((error) => console.error("Erro ao definir persistência de autenticação:", error));
-            } catch (error) {
-                console.error('Erro ao inicializar Firebase. Verifique suas credenciais:', error);
-                displayAlert(["Erro: O sistema de base de dados não foi inicializado. Por favor, forneça suas credenciais Firebase e recarregue a página."]);
-            }
-        } else {
-            console.warn("firebaseConfig está vazio ou contém placeholders. O Firebase não será inicializado até que as credenciais sejam fornecidas.");
-            displayAlert(["Aviso: As credenciais do Firebase não foram configuradas. O aplicativo não funcionará corretamente. Por favor, edite o código para adicionar suas credenciais."]);
-        }
-
-        // Estas são as mensagens de depuração que pedimos para adicionar
-        if (app && db && auth) {
-            console.log("Firebase e autenticação inicializados com sucesso e acessíveis.");
-        } else {
-            console.error("ERRO: Firebase ou autenticação NÃO inicializados. Verifique suas credenciais e a conexão.");
-        }
-        
-        // =============================================================================
-        // IMPORTANTE: VOCÊ DEVE SUBSTITUIR "txHwdn3rwubSff4PvekjO4PM7wb2" PELO SEU UID DE UTILIZADOR REAL.
-        // Após registar e fazer login pela primeira vez, o seu UID será exibido na tela principal.
-        // Copie-o e cole-o aqui para se tornar o administrador.
-        // Exemplo: const ADMIN_UIDs = ['AbCdeFgHijKlmNoPqrStUvWxyZ12345'];
-        const ADMIN_UIDs = ['txHwdn3rwubSff4PvekjO4PM7wb2', 'xo7oBxVSn8QeUx3HvAl8gO3Mq2w1']; // <<< MUDE AQUI!
-        // =============================================================================
-
-        // --- DOM Elements ---
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const customAlertModal = document.getElementById('customAlertModal');
-        const alertMessagesDiv = document.getElementById('alertMessages');
-        const alertCloseButton = document.getElementById('alertCloseButton');
-        const customConfirmModal = document.getElementById('customConfirmModal');
-        const confirmMessageP = document.getElementById('confirmMessage');
-        const confirmCancelButton = document.getElementById('confirmCancelButton');
-        const confirmActionButton = document.getElementById('confirmActionButton');
-
-        const authScreen = document.getElementById('auth-screen');
-        const authTitle = document.getElementById('auth-title');
-        const authEmailInput = document.getElementById('auth-email');
-        const authPasswordInput = document.getElementById('auth-password');
-        const registerFieldsDiv = document.getElementById('register-fields');
-        const authFullNameInput = document.getElementById('auth-fullName');
-        const authCpfInput = document.getElementById('auth-cpf');
-        const authPhoneInput = document.getElementById('auth-phone');
-        const authActionButton = document.getElementById('auth-action-button');
-        const toggleAuthModeButton = document.getElementById('toggle-auth-mode-button');
-
-        const mainAppContent = document.getElementById('main-app-content');
-        const userEmailDisplay = document.getElementById('user-email-display');
-        const userRoleDisplay = document.getElementById('user-role-display');
-        const userIdDisplay = document.getElementById('user-id-display');
-        const navListButton = document.getElementById('nav-list-button');
-        const navRegisterButton = document.getElementById('nav-register-button');
-        const navRemindersButton = document.getElementById('nav-reminders-button');
-        const logoutButton = document.getElementById('logout-button');
-        const contractsListSection = document.getElementById('contracts-list-section');
-        const contractsGrid = document.getElementById('contracts-grid');
-
-        const registerContractSection = document.getElementById('register-contract-section');
-        const registerContractTitle = document.getElementById('register-contract-title');
-        const inputProcessoSCEI = document.getElementById('input-processoSCEI');
-        const inputNomeEmpresa = document.getElementById('input-nomeEmpresa');
-        const inputObjetoContratacao = document.getElementById('input-objetoContratacao');
-        const inputNumeroContrato = document.getElementById('input-numeroContrato');
-        const inputInicioVigenciaTotal = document.getElementById('input-inicioVigenciaTotal');
-        const selectMomentoAtual = document.getElementById('select-momentoAtual');
-        const inputTerminoAtualContrato = document.getElementById('input-terminoAtualContrato');
-        const selectLawType = document.getElementById('select-lawType');
-        const inputValorContrato = document.getElementById('input-valorContrato');
-        const unidadesCheckboxes = document.getElementById('unidades-checkboxes');
-        const inputUltimasMovimentacoes = document.getElementById('input-ultimasMovimentacoes');
-        const addUpdateContractButton = document.getElementById('add-update-contract-button');
-        const cancelEditButton = document.getElementById('cancel-edit-button');
-
-        const remindersSection = document.getElementById('reminders-section');
-        const inputReminderText = document.getElementById('input-reminderText');
-        const inputReminderDate = document.getElementById('input-reminderDate');
-        const addReminderButton = document.getElementById('add-reminder-button');
-        const remindersList = document.getElementById('reminders-list');
-
-        // --- Global State Variables --- // AQUI ESTAVAM ANTES, FORAM MOVIDAS PARA CIMA
-        let contractsData = [];
-        let remindersData = [];
-        const processColors = {};
-        // To store colors for each Processo SEI
-        const colorPalette = [
-            '#DBEAFE', '#D1FAE5', '#FEE2E2', '#FEF9C3', '#EDE9FE', '#FCE7F3', '#EEF2FF',
-            '#CCFBF1', '#FFEDD5', '#ECFCCB', '#CFFAFE', '#FAE8FF', '#FFE4E6', '#E0F2FE',
-            '#F5F3FF', '#FFFBEB', '#E5E7EB'
-        ];
-        // Options for form fields
-        const momentoAtualOptions = [
-            'Inicial', 'Primeira Renovação', 'Segunda Renovação', 'Terceira Renovação',
-            'Quarta Renovação', 'Quinta Renovação', 'Sexta Renovação', 'Sétima Renovação',
-            'Oitava Renovação', 'Nona Renovação', 'Décima Renovação', 'Não haverá renovação',
-        ];
-        const lawTypeOptions = [
-            'Lei 8.666/93 (60 meses)', 'Lei 14.133/21 (10 anos)',
-        ];
-        const unidadesDisponiveis = [
-            'HJXXIII', 'HIJPII', 'HMAL', 'HEM', 'HAC', 'HRJP', 'CHB', 'HRBJA',
-            'CSSFA', 'CSSFE', 'CSSI', 'HRAD', 'HCM', 'MOV', 'HJK', 'CSPD', 'IRS', 'HRB'
-        ];
-        // --- Utility Functions ---
-
-        /**
-         * Shows the loading spinner.
-         */
-        function showLoading() {
-            loadingSpinner.classList.remove('hidden');
-        }
-
-        /**
-         * Hides the loading spinner.
-         */
-        function hideLoading() {
-            loadingSpinner.classList.add('hidden');
-        }
-
-        /**
-         * Displays a custom alert modal with given messages.
-         * @param {Array<string>} messages - An array of messages to display.
-         */
-        function displayAlert(messages) {
-            currentAlertMessages = messages;
-            alertMessagesDiv.innerHTML = messages.map(msg => `<p class="text-gray-700 text-base mb-1">${msg}</p>`).join('');
-            customAlertModal.classList.remove('hidden');
-        }
-
-        /**
-         * Hides the custom alert modal.
-         */
-        function hideAlert() {
-            customAlertModal.classList.add('hidden');
-            currentAlertMessages = [];
-        }
-
-        /**
-         * Displays a custom confirmation modal.
-         * @param {string} message - The confirmation message.
-         * @param {Function} onConfirmAction - The function to execute if confirmed.
-         */
-        function displayConfirm(message, onConfirmAction) {
-            confirmMessageP.innerHTML = message; // Use innerHTML to allow for HTML in message
-            currentConfirmAction = onConfirmAction;
-            customConfirmModal.classList.remove('hidden');
-        }
-
-        /**
-         * Hides the custom confirmation modal.
-         */
-        function hideConfirm() {
-            customConfirmModal.classList.add('hidden');
-            currentConfirmAction = null;
-            confirmMessageP.textContent = '';
-        }
-
-        /**
-         * Handles the confirmation action.
-         */
-        function handleConfirm() {
-            if (currentConfirmAction) {
-                currentConfirmAction();
-            }
-            hideConfirm();
-        }
-
-        /**
-         * Handles the cancellation of the confirmation action.
-         */
-        function handleCancelConfirm() {
-            hideConfirm();
-        }
-
-        /**
-         * Converts DD/MM/YYYY string to YYYY-MM-DD for input type="date".
-         * @param {string} dateStr - Date string in DD/MM/YYYY format.
-         * @returns {string} Date string in YYYY-MM-DD format or empty string.
-         */
-        function formatDateForInput(dateStr) {
-            if (!dateStr || !dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) return '';
-            const [day, month, year] = dateStr.split('/');
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        }
-
-        /**
-         * Converts YYYY-MM-DD string to DD/MM/YYYY.
-         * @param {string} dateStr - Date string in YYYY-MM-DD format.
-         * @returns {string} Date string in DD/MM/YYYY format.
-         */
-        function formatDateFromInput(dateStr) {
-            if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return '';
-            const [year, month, day] = dateStr.split('-');
-            return `${day}/${month}/${year}`;
-        }
-
-        /**
-         * Calculates the legal termination date based on start date and law type.
-         * @param {string} inicioVigenciaStr - Start date in DD/MM/YYYY.
-         * @param {string} contractLawType - Type of law (e.g., 'Lei 8.666/93 (60 meses)').
-         * @returns {string} Legal termination date in DD/MM/YYYY or error message.
-         */
-        function calcularTerminoLegal(inicioVigenciaStr, contractLawType) {
-            if (!inicioVigenciaStr || !inicioVigenciaStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-                return 'Data de início inválida';
-            }
-
-            const [day, month, year] = inicioVigenciaStr.split('/').map(Number);
-            const startDate = new Date(year, month - 1, day);
-
-            let monthsToAddTotal = 0;
-            if (contractLawType === 'Lei 8.666/93 (60 meses)') {
-                monthsToAddTotal = 60; // 5 anos
-            } else if (contractLawType === 'Lei 14.133/21 (10 anos)') {
-                monthsToAddTotal = 120; // 10 anos
-            } else {
-                return 'Tipo de lei inválido';
-            }
-
-            const endDate = new Date(startDate);
-            endDate.setMonth(endDate.getMonth() + monthsToAddTotal);
-            // Adjust day if it overflows (e.g., Jan 31 + 1 month = Feb 28/29, not Mar 3)
-            if (endDate.getDate() !== day) {
-                endDate.setDate(0); // Set to last day of previous month
-            }
-
-            const formattedDay = String(endDate.getDate()).padStart(2, '0');
-            const formattedMonth = String(endDate.getMonth() + 1).padStart(2, '0');
-            const formattedYear = endDate.getFullYear();
-            return `${formattedDay}/${formattedMonth}/${formattedYear}`;
-        }
-
-        /**
-         * Formats a number from Firebase (e.g., 1234567.89) to display string (e.g., "1.234.567,89").
-         * @param {number} numValue - The number value from Firebase.
-         * @returns {string} Formatted currency string.
-         */
-        function formatNumberFromFirebaseForDisplay(numValue) {
-            if (numValue === null || numValue === undefined || isNaN(numValue)) {
-                return '';
-            }
-            const number = typeof numValue === 'string' ? parseFloat(numValue) : numValue;
-            if (isNaN(number)) return '';
-            return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: true });
-        }
-
-        /**
-         * Parses a formatted currency string (e.g., "1.234.567,89") to a number for Firebase (e.g., 1234567.89).
-         * @param {string} formattedValue - The formatted currency string.
-         * @returns {number|null} Parsed number or null if invalid.
-         */
-        function parseValorContratoForSave(formattedValue) {
-            if (!formattedValue) return null;
-            const cleaned = formattedValue.replace(/\./g, '').replace(/,/g, '.');
-            const number = parseFloat(cleaned);
-            return isNaN(number) ? null : number;
-        }
-
-        /**
-         * Handles the input change for valorContrato, formatting it as currency.
-         * @param {Event} e - The input event.
-         */
-        function handleValorContratoInputChange(e) {
-            let value = e.target.value;
-            let cleanedValue = value.replace(/[^0-9]/g, '');
-            if (cleanedValue === '' || cleanedValue === '0') {
-                inputValorContrato.value = cleanedValue;
-                return;
-            }
-            if (cleanedValue.length < 3) {
-                cleanedValue = cleanedValue.padStart(3, '0');
-            }
-            let integerPart = cleanedValue.slice(0, -2);
-            let decimalPart = cleanedValue.slice(-2);
-            integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-            const formattedValue = `${integerPart},${decimalPart}`;
-            inputValorContrato.value = formattedValue;
-        }
-
-        /**
-         * Checks if a contract is expiring soon (within 180 days).
-         * @param {Object} contract - The contract object.
-         * @returns {boolean} True if expiring soon, false otherwise.
-         */
-        function isExpiringSoon(contract) {
-            if (!contract.terminoAtualContrato) return false;
-            const [day, month, year] = contract.terminoAtualContrato.split('/').map(Number);
-            const endDate = new Date(year, month - 1, day);
-            const today = new Date();
-            today.setHours(0,0,0,0); // Normalize today's date to start of day
-            const diffTime = endDate.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays <= 180 && diffDays > 0;
-        }
-
-        // --- UI Rendering Functions ---
-
-        /**
-         * Sets the current active page and updates navigation button styles.
-         * @param {string} page - The page to show ('list', 'register', 'reminders').
-         */
-        function setPage(page) {
-            contractsListSection.classList.add('hidden');
-            registerContractSection.classList.add('hidden');
-            remindersSection.classList.add('hidden');
-
-            navListButton.classList.remove('bg-purple-600', 'text-white', 'shadow-md'); navListButton.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-
-            navRegisterButton.classList.remove('bg-purple-600', 'text-white', 'shadow-md'); navRegisterButton.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-
-            navRemindersButton.classList.remove('bg-purple-600', 'text-white', 'shadow-md'); navRemindersButton.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-
-            if (page === 'list') {
-                contractsListSection.classList.remove('hidden');
-                navListButton.classList.add('bg-purple-600', 'text-white', 'shadow-md'); navListButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-            } else if (page === 'register') {
-                registerContractSection.classList.remove('hidden');
-                navRegisterButton.classList.add('bg-purple-600', 'text-white', 'shadow-md'); navRegisterButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-            } else if (page === 'reminders') {
-                remindersSection.classList.remove('hidden');
-                navRemindersButton.classList.add('bg-purple-600', 'text-white', 'shadow-md'); navRemindersButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
-            }
-        }
-
-        /**
-         * Renders the list of contracts in the contracts grid.
-         * @param {Array<Object>} contracts - Array of contract objects.
-         */
-        function renderContracts(contracts) {
-            contractsGrid.innerHTML = ''; // Clear existing contracts
-
-            if (contracts.length === 0) {
-                contractsGrid.innerHTML = '<p class="col-span-full text-center text-gray-600 text-lg">Nenhum contrato encontrado. ' + (isAdmin ? 'Clique em "Registrar Contrato" para adicionar um novo.' : '') + '</p>';
-                return;
-            }
-
-            // Sort contracts: expiring soon first, then by Processo SEI
-            const sortedContracts = [...contracts].sort((a, b) => {
-                const aExpiring = isExpiringSoon(a);
-                const bExpiring = isExpiringSoon(b);
-
-                if (aExpiring && !bExpiring) return -1;
-                if (!aExpiring && bExpiring) return 1;
-
-                return (a.processoSCEI || '').localeCompare(b.processoSCEI || '');
-            });
-
-            sortedContracts.forEach(contract => {
-                // Assign a color to each unique Processo SEI
-                if (!processColors[contract.processoSCEI]) {
-                    processColors[contract.processoSCEI] = colorPalette[Object.keys(processColors).length % colorPalette.length];
-                }
-
-                const contractCard = document.createElement('div');
-                contractCard.className = `relative p-6 rounded-2xl shadow-md border ${isExpiringSoon(contract) ? 'border-red-500 animate-pulse-red' : 'border-gray-200'}`;
-                contractCard.style.backgroundColor = processColors[contract.processoSCEI] || '#FFFFFF';
-
-                let expiringSoonTag = '';
-                if (isExpiringSoon(contract)) {
-                    const [day, month, year] = contract.terminoAtualContrato.split('/').map(Number);
-                    const endDate = new Date(year, month - 1, day);
-                    const today = new Date();
-                    today.setHours(0,0,0,0); // Normalize today's date to start of day
-                    const diffTime = endDate.getTime() - today.getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                    expiringSoonTag = `
-                        <span class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                            ⚠️ VENCENDO EM ${diffDays} DIAS!
-                        </span>
-                    `;
-                }
-
-                const unidadesHtml = (contract.unidadesParticipantes && contract.unidadesParticipantes.length > 0)
-                    ? contract.unidadesParticipantes.map(unidade => `<span class="inline-block bg-purple-200 text-purple-800 text-xs px-2 py-1 rounded-full">${unidade}</span>`).join(' ') : 'N/A';
-                
-                const valorContratoFormatted = formatNumberFromFirebaseForDisplay(contract.valorContrato);
-
-                contractCard.innerHTML = `
-                    ${expiringSoonTag}
-                    <h3 class="text-xl font-bold text-gray-800 mb-2">${contract.nomeEmpresa || 'N/A'}</h3>
-                    <p class="text-gray-600 text-sm mb-1">Processo SEI: <span class="font-semibold">${contract.processoSCEI || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Número Contrato: <span class="font-semibold">${contract.numeroContrato || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Objeto: <span class="font-semibold">${contract.objetoContratacao || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Início Vigência: <span class="font-semibold">${contract.inicioVigenciaTotal || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Término Atual: <span class="font-semibold">${contract.terminoAtualContrato || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Momento Atual: <span class="font-semibold">${contract.momentoAtual || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Tipo de Lei: <span class="font-semibold">${contract.lawType || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Valor: <span class="font-semibold">R$ ${valorContratoFormatted}</span></p>
-                    <p class="text-gray-600 text-sm mb-1">Últimas Movimentações: <span class="font-semibold">${contract.ultimasMovimentacoes || 'N/A'}</span></p>
-                    <p class="text-gray-600 text-sm mb-4">Unidades: ${unidadesHtml}</p>
-                    ${isAdmin ? `
-                    <div class="flex justify-end gap-2 mt-4">
-                        <button class="edit-contract-button bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-lg" data-id="${contract.id}">
-                            Editar
-                        </button>
-                        <button class="delete-contract-button bg-red-500 hover:bg-red-600 text-white text-sm px-4 py-2 rounded-lg" data-id="${contract.id}">
-                            Excluir
-                        </button>
-                    </div>
-                    ` : ''}
-                `;
-                contractsGrid.appendChild(contractCard);
-            });
-
-            // Add event listeners for edit and delete buttons after rendering
-            if (isAdmin) {
-                document.querySelectorAll('.edit-contract-button').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const contractId = e.target.dataset.id;
-                        editContract(contractId);
-                    });
-                });
-                document.querySelectorAll('.delete-contract-button').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const contractId = e.target.dataset.id;
-                        confirmDeleteContract(contractId);
-                    });
-                });
-            }
-        }
-
-        /**
-         * Renders the list of reminders.
-         * @param {Array<Object>} reminders - Array of reminder objects.
-         */
-        function renderReminders(reminders) {
-            remindersList.innerHTML = '';
-            if (reminders.length === 0) {
-                remindersList.innerHTML = '<p class="text-center text-gray-600 text-lg mt-4">Nenhum lembrete adicionado ainda.</p>';
-                return;
-            }
-
-            const now = new Date();
-            now.setHours(0,0,0,0);
-
-            // Sort reminders by date, overdue first
-            const sortedReminders = [...reminders].sort((a, b) => {
-                const dateA = new Date(formatDateForInput(a.reminderDate));
-                const dateB = new Date(formatDateForInput(b.reminderDate));
-
-                const isOverdueA = dateA < now;
-                const isOverdueB = dateB < now;
-
-                if (isOverdueA && !isOverdueB) return -1;
-                if (!isOverdueA && isOverdueB) return 1;
-
-                return dateA - dateB; // Sort by date if not overdue/both overdue
-            });
-
-
-            sortedReminders.forEach(reminder => {
-                const reminderDate = new Date(formatDateForInput(reminder.reminderDate));
-                const isOverdue = reminderDate < now;
-                const listItem = document.createElement('li');
-                listItem.className = `flex justify-between items-center p-4 rounded-lg shadow-sm border ${isOverdue ? 'bg-red-100 border-red-400' : 'bg-blue-50 border-blue-200'}`;
-                listItem.innerHTML = `
-                    <div>
-                        <p class="text-lg font-semibold ${isOverdue ? 'text-red-800' : 'text-blue-800'}">${reminder.reminderText}</p>
-                        <p class="text-sm ${isOverdue ? 'text-red-600' : 'text-blue-600'}">Data: ${reminder.reminderDate} ${isOverdue ? '(VENCIDO)' : ''}</p>
-                    </div>
-                    <button class="delete-reminder-button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200" data-id="${reminder.id}">
-                        Excluir
-                    </button>
-                `;
-                remindersList.appendChild(listItem);
-            });
-
-            document.querySelectorAll('.delete-reminder-button').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const reminderId = e.target.dataset.id;
-                    confirmDeleteReminder(reminderId);
-                });
-            });
-        }
-
-        // --- Firebase Data Operations ---
-
-        /**
-         * Fetches contracts from Firestore for the current user (admin gets all, others get their own).
-         */
-        async function fetchContracts() {
-            showLoading();
-            try {
-                let contractsRef = collection(db, 'contracts');
-                const snapshot = await getDocs(contractsRef);
-                contractsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderContracts(contractsData);
-                updateGlobalAlerts(contractsData, 'contract');
-            } catch (error) {
-                console.error("Erro ao carregar contratos:", error);
-                displayAlert(["Erro ao carregar contratos. Por favor, tente novamente."]);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        /**
-         * Sets up real-time listeners for contracts and reminders.
-         */
-        function setupFirebaseListeners() {
-            if (!auth || !db) return; // Ensure Firebase is initialized
-
-            // Contracts Listener
-            let contractsCollectionRef = collection(db, 'contracts');
-            onSnapshot(contractsCollectionRef, (snapshot) => {
-                contractsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderContracts(contractsData);
-                updateGlobalAlerts(contractsData, 'contract');
-            }, (error) => {
-                console.error("Erro ao configurar listener de contratos:", error);
-                displayAlert(["Erro ao carregar dados de contratos em tempo real."]);
-            });
-
-            // Reminders Listener (user-specific)
-            let remindersCollectionRef = collection(db, 'reminders');
-            let userRemindersQuery = query(remindersCollectionRef, where("userId", "==", userId));
-            onSnapshot(userRemindersQuery, (snapshot) => {
-                remindersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderReminders(remindersData);
-                updateGlobalAlerts(remindersData, 'reminder');
-            }, (error) => {
-                console.error("Erro ao configurar listener de lembretes:", error);
-                displayAlert(["Erro ao carregar seus lembretes em tempo real."]);
-            });
-        }
-
-
-        /**
-         * Adds a new contract or updates an existing one in Firestore.
-         */
-        async function addUpdateContract() {
-            showLoading();
-            const validationErrors = [];
-
-            if (!inputProcessoSCEI.value) validationErrors.push("Processo SEI é obrigatório.");
-            if (!inputNomeEmpresa.value) validationErrors.push("Nome da Empresa é obrigatório.");
-            if (!inputObjetoContratacao.value) validationErrors.push("Objeto da Contratação é obrigatório.");
-            if (!inputNumeroContrato.value) validationErrors.push("Número do Contrato é obrigatório.");
-            if (!inputInicioVigenciaTotal.value) validationErrors.push("Início da Vigência é obrigatório.");
-            if (!selectMomentoAtual.value) validationErrors.push("Momento Atual é obrigatório.");
-            if (!inputTerminoAtualContrato.value) validationErrors.push("Término Atual é obrigatório.");
-            if (!selectLawType.value) validationErrors.push("Tipo de Lei é obrigatório.");
-
-            const selectedUnidades = Array.from(unidadesCheckboxes.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            if (selectedUnidades.length === 0) validationErrors.push("Selecione ao menos uma Unidade Participante.");
-
-            const valorContratoParsed = parseValorContratoForSave(inputValorContrato.value);
-            if (valorContratoParsed === null && inputValorContrato.value !== '') {
-                validationErrors.push("Valor do Contrato inválido.");
-            }
-
-            if (validationErrors.length > 0) {
-                displayAlert(validationErrors);
-                hideLoading();
-                return;
-            }
-
-            const contractData = {
-                processoSCEI: inputProcessoSCEI.value,
-                nomeEmpresa: inputNomeEmpresa.value,
-                objetoContratacao: inputObjetoContratacao.value,
-                numeroContrato: inputNumeroContrato.value,
-                inicioVigenciaTotal: formatDateFromInput(inputInicioVigenciaTotal.value),
-                momentoAtual: selectMomentoAtual.value,
-                terminoAtualContrato: formatDateFromInput(inputTerminoAtualContrato.value),
-                lawType: selectLawType.value,
-                valorContrato: valorContratoParsed, // Saved as number
-                unidadesParticipantes: selectedUnidades,
-                ultimasMovimentacoes: inputUltimasMovimentacoes.value,
-                lastUpdated: Timestamp.now(),
-                // Store the UID of the user who added/updated
-                addedBy: userId,
-                // Additional fields for calculations or tracking
-                terminoLegalCalculado: calcularTerminoLegal(formatDateFromInput(inputInicioVigenciaTotal.value), selectLawType.value)
-            };
-
-            try {
-                if (currentEditingContract) {
-                    const contractRef = doc(db, 'contracts', currentEditingContract.id);
-                    await updateDoc(contractRef, contractData);
-                    displayAlert(["Contrato atualizado com sucesso!"]);
-                    currentEditingContract = null;
-                } else {
-                    await addDoc(collection(db, 'contracts'), contractData);
-                    displayAlert(["Contrato adicionado com sucesso!"]);
-                }
-                resetContractForm();
-                setPage('list'); // Go back to list view
-            } catch (error) {
-                console.error("Erro ao salvar contrato:", error);
-                displayAlert(["Erro ao salvar contrato. Por favor, tente novamente."]);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        /**
-         * Fills the form with contract data for editing.
-         * @param {string} contractId - The ID of the contract to edit.
-         */
-        async function editContract(contractId) {
-            showLoading();
-            try {
-                const contractRef = doc(db, 'contracts', contractId);
-                const docSnap = await getDoc(contractRef);
-
-                if (docSnap.exists()) {
-                    const contract = { id: docSnap.id, ...docSnap.data() };
-                    currentEditingContract = contract;
-                    registerContractTitle.textContent = "Editar Contrato";
-                    addUpdateContractButton.textContent = "Atualizar Contrato";
-                    cancelEditButton.classList.remove('hidden');
-
-                    inputProcessoSCEI.value = contract.processoSCEI || '';
-                    inputNomeEmpresa.value = contract.nomeEmpresa || '';
-                    inputObjetoContratacao.value = contract.objetoContratacao || '';
-                    inputNumeroContrato.value = contract.numeroContrato || '';
-                    inputInicioVigenciaTotal.value = formatDateForInput(contract.inicioVigenciaTotal);
-                    selectMomentoAtual.value = contract.momentoAtual || '';
-                    inputTerminoAtualContrato.value = formatDateForInput(contract.terminoAtualContrato);
-                    selectLawType.value = contract.lawType || '';
-                    inputValorContrato.value = formatNumberFromFirebaseForDisplay(contract.valorContrato);
-                    inputUltimasMovimentacoes.value = contract.ultimasMovimentacoes || '';
-
-                    unidadesCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                        checkbox.checked = contract.unidadesParticipantes && contract.unidadesParticipantes.includes(checkbox.value);
-                    });
-
-                    setPage('register');
-                } else {
-                    displayAlert(["Contrato não encontrado para edição."]);
-                }
-            } catch (error) {
-                console.error("Erro ao carregar contrato para edição:", error);
-                displayAlert(["Erro ao carregar contrato para edição. Por favor, tente novamente."]);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        /**
-         * Confirms deletion of a contract.
-         * @param {string} contractId - The ID of the contract to delete.
-         */
-        function confirmDeleteContract(contractId) {
-            displayConfirm("Tem certeza que deseja excluir este contrato? Esta ação é irreversível.", async () => {
-                showLoading();
-                try {
-                    await deleteDoc(doc(db, 'contracts', contractId));
-                    displayAlert(["Contrato excluído com sucesso!"]);
-                } catch (error) {
-                    console.error("Erro ao excluir contrato:", error);
-                    displayAlert(["Erro ao excluir contrato. Por favor, tente novamente."]);
-                } finally {
-                    hideLoading();
-                }
-            });
-        }
-
-        /**
-         * Adds a new reminder to Firestore.
-         */
-        async function addReminder() {
-            showLoading();
-            const reminderText = inputReminderText.value.trim();
-            const reminderDate = inputReminderDate.value;
-
-            if (!reminderText || !reminderDate) {
-                displayAlert(["Por favor, preencha o texto e a data do lembrete."]);
-                hideLoading();
-                return;
-            }
-
-            try {
-                await addDoc(collection(db, 'reminders'), {
-                    userId: userId, // Associate reminder with current user
-                    reminderText: reminderText,
-                    reminderDate: formatDateFromInput(reminderDate),
-                    createdAt: Timestamp.now()
-                });
-                displayAlert(["Lembrete adicionado com sucesso!"]);
-                inputReminderText.value = '';
-                inputReminderDate.value = '';
-            } catch (error) {
-                console.error("Erro ao adicionar lembrete:", error);
-                displayAlert(["Erro ao adicionar lembrete. Por favor, tente novamente."]);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        /**
-         * Confirms deletion of a reminder.
-         * @param {string} reminderId - The ID of the reminder to delete.
-         */
-        function confirmDeleteReminder(reminderId) {
-            displayConfirm("Tem certeza que deseja excluir este lembrete?", async () => {
-                showLoading();
-                try {
-                    await deleteDoc(doc(db, 'reminders', reminderId));
-                    displayAlert(["Lembrete excluído com sucesso!"]);
-                } catch (error) {
-                    console.error("Erro ao excluir lembrete:", error);
-                    displayAlert(["Erro ao excluir lembrete. Por favor, tente novamente."]);
-                } finally {
-                    hideLoading();
-                }
-            });
-        }
-
-
-        // --- Authentication and User Management ---
-
-        /**
-         * Toggles between login and registration forms.
-         */
-        function toggleAuthMode() {
-            isRegistering = !isRegistering;
-            if (isRegistering) {
-                authTitle.textContent = "Registe-se";
-                authActionButton.textContent = "Registar";
-                toggleAuthModeButton.textContent = "Já tem uma conta? Faça Login";
-                registerFieldsDiv.classList.remove('hidden');
-                // Clear password field when switching to register
-                authPasswordInput.value = '';
-            } else {
-                authTitle.textContent = "Login";
-                authActionButton.textContent = "Login";
-                toggleAuthModeButton.textContent = "Não tem uma conta? Registe-se";
-                registerFieldsDiv.classList.add('hidden');
-                // Clear password field when switching to login
-                authPasswordInput.value = '';
-            }
-        }
-
-        /**
-         * Handles user login or registration.
-         */
-        async function handleAuthAction() {
-            showLoading();
-            const email = authEmailInput.value;
-            const password = authPasswordInput.value;
-
-            if (!email || !password) {
-                displayAlert(["Por favor, preencha o email e a palavra-passe."]);
-                hideLoading();
-                return;
-            }
-
-            if (isRegistering) {
-                const fullName = authFullNameInput.value;
-                const cpf = authCpfInput.value;
-                const phone = authPhoneInput.value;
-
-                if (!fullName || !cpf || !phone) {
-                    displayAlert(["Por favor, preencha todos os campos de registo."]);
-                    hideLoading();
-                    return;
-                }
-
-                try {
-                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                    const user = userCredential.user;
-
-                    // Save additional user info to Firestore
-                    await setDoc(doc(db, "users", user.uid), {
-                        fullName: fullName,
-                        cpf: cpf,
-                        phone: phone,
-                        email: email,
-                        role: 'visualizador', // Default role for new users
-                        createdAt: Timestamp.now()
-                    });
-                    displayAlert(["Registo bem-sucedido! Pode agora fazer login."]);
-                    // Automatically log in after registration, onAuthStateChanged will handle UI
-                } catch (error) {
-                    console.error("Erro no registo:", error);
-                    let errorMessage = "Erro no registo. Por favor, tente novamente.";
-                    if (error.code === 'auth/email-already-in-use') {
-                        errorMessage = "O email fornecido já está em uso.";
-                    } else if (error.code === 'auth/invalid-email') {
-                        errorMessage = "O formato do email é inválido.";
-                    } else if (error.code === 'auth/weak-password') {
-                        errorMessage = "A palavra-passe é muito fraca (mínimo 6 caracteres).";
-                    }
-                    displayAlert([errorMessage]);
-                } finally {
-                    hideLoading();
-                }
-            } else {
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    // onAuthStateChanged will handle UI update
-                } catch (error) {
-                    console.error("Erro no login:", error);
-                    let errorMessage = "Erro no login. Email ou palavra-passe inválidos.";
-                    if (error.code === 'auth/invalid-email') {
-                        errorMessage = "O formato do email é inválido.";
-                    } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-                        errorMessage = "Email ou palavra-passe inválidos. Verifique suas credenciais.";
-                    } else if (error.code === 'auth/too-many-requests') {
-                        errorMessage = "Demasiadas tentativas de login falhadas. Por favor, tente novamente mais tarde.";
-                    }
-                    displayAlert([errorMessage]);
-                } finally {
-                    hideLoading();
-                }
-            }
-        }
-
-        /**
-         * Handles user logout.
-         */
-        async function handleLogout() {
-            showLoading();
-            try {
-                await signOut(auth);
-                displayAlert(["Sessão encerrada com sucesso."]);
-            } catch (error) {
-                console.error("Erro ao fazer logout:", error);
-                displayAlert(["Erro ao fazer logout. Por favor, tente novamente."]);
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // --- UI Initialization and Event Listeners ---
-
-        // Populate select options
-        function populateSelectOptions() {
-            momentoAtualOptions.forEach(option => {
-                const opt = document.createElement('option');
-                opt.value = option;
-                opt.textContent = option;
-                selectMomentoAtual.appendChild(opt);
-            });
-            lawTypeOptions.forEach(option => {
-                const opt = document.createElement('option');
-                opt.value = option;
-                opt.textContent = option;
-                selectLawType.appendChild(opt);
-            });
-            unidadesDisponiveis.forEach(unidade => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center';
-                div.innerHTML = `
-                    <input type="checkbox" id="unidade-${unidade}" value="${unidade}" class="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"> <label for="unidade-${unidade}" class="ml-2 text-gray-700 text-sm">${unidade}</label>
-                `;
-                unidadesCheckboxes.appendChild(div);
-            });
-        }
-        populateSelectOptions(); // Call to populate on load
-
-        // Reset contract form fields
-        function resetContractForm() {
-            inputProcessoSCEI.value = '';
-            inputNomeEmpresa.value = '';
-            inputObjetoContratacao.value = '';
-            inputNumeroContrato.value = '';
-            inputInicioVigenciaTotal.value = '';
-            selectMomentoAtual.value = '';
-            inputTerminoAtualContrato.value = '';
-            selectLawType.value = '';
-            inputValorContrato.value = '';
-            unidadesCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            inputUltimasMovimentacoes.value = '';
-            registerContractTitle.textContent = "Registrar Novo Contrato";
-            addUpdateContractButton.textContent = "Adicionar Contrato";
-            cancelEditButton.classList.add('hidden');
-            currentEditingContract = null;
-        }
-
-        // Update global alerts (e.g., contracts expiring soon, overdue reminders)
-        function updateGlobalAlerts(data, type) {
-            // This function would typically display a notification badge or similar.
-            // For now, it just logs.
-            if (type === 'contract') {
-                const expiring = data.filter(isExpiringSoon);
-                if (expiring.length > 0) {
-                    console.log(`ALERTA: ${expiring.length} contratos vencendo em breve!`);
-                }
-            } else if (type === 'reminder') {
-                const now = new Date();
-                now.setHours(0,0,0,0);
-                const overdue = data.filter(r => new Date(formatDateForInput(r.reminderDate)) < now);
-                if (overdue.length > 0) {
-                    console.log(`ALERTA: ${overdue.length} lembretes vencidos!`);
-                }
-            }
-        }
-
-
-        // Event Listeners
-        alertCloseButton.addEventListener('click', hideAlert);
-        confirmCancelButton.addEventListener('click', handleCancelConfirm);
-        confirmActionButton.addEventListener('click', handleConfirm);
-
-        toggleAuthModeButton.addEventListener('click', toggleAuthMode);
-        authActionButton.addEventListener('click', handleAuthAction);
-        logoutButton.addEventListener('click', handleLogout);
-
-        navListButton.addEventListener('click', () => setPage('list'));
-        navRegisterButton.addEventListener('click', () => {
-            resetContractForm(); // Clear form on navigating to register
-            setPage('register');
-        });
-        navRemindersButton.addEventListener('click', () => setPage('reminders'));
-
-        addUpdateContractButton.addEventListener('click', addUpdateContract);
-        cancelEditButton.addEventListener('click', resetContractForm);
-        addReminderButton.addEventListener('click', addReminder);
-
-        inputValorContrato.addEventListener('input', handleValorContratoInputChange);
-
-        // --- Initial Load Logic ---
-        document.addEventListener('DOMContentLoaded', () => {
-            showLoading(); // Show loading spinner immediately on page load
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    isLoggedIn = true;
-                    userId = user.uid;
-                    userEmail = user.email;
-                    // Check if the user's UID is in the ADMIN_UIDs array
-                    isAdmin = ADMIN_UIDs.includes(user.uid);
-
-                    userEmailDisplay.textContent = userEmail;
-                    userRoleDisplay.textContent = isAdmin ? 'Administrador' : 'Visualizador';
-                    userIdDisplay.textContent = userId;
-
-                    authScreen.classList.add('hidden');
-                    mainAppContent.classList.remove('hidden');
-                    setPage('list'); // Default to contracts list after login
-                    setupFirebaseListeners(); // Start listening for data
-                } else {
-                    isLoggedIn = false;
-                    userId = '';
-                    userEmail = '';
-                    isAdmin = false;
-                    authScreen.classList.remove('hidden');
-                    mainAppContent.classList.add('hidden');
-                    // Clear any existing data if user logs out
-                    contractsData = [];
-                    remindersData = [];
-                    renderContracts([]);
-                    renderReminders([]);
-                    updateGlobalAlerts([], 'contract');
-                    updateGlobalAlerts([], 'reminder');
-                }
-                hideLoading();
-            });
-        });
-    </script>
+<body>
+  <h1>Gestão de Contratos</h1>
+
+  <div id="auth-section">
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Senha" />
+    <button id="login-btn">Login</button>
+    <button id="register-btn">Registrar</button>
+    <button id="logout-btn" style="display:none;">Sair</button>
+  </div>
+
+  <div id="app-section" style="display:none;">
+    <h2>Registrar Contrato</h2>
+    <input type="text" id="empresa" placeholder="Nome da Empresa" />
+    <input type="text" id="objeto" placeholder="Objeto da Contratação" />
+    <button id="add-contrato">Adicionar Contrh3>Contratos Registrados</h3>
+    <ul id="lista-contratos"></ul>
+
+    <h2>Meus Lembretes</h2>
+    <input type="text" id="lembrete" placeholder="Novo Lembrete" />
+    <button id="add-lembrete">Adicionar Lembrete</button>
+
+    <h3>Lembretes</h3>
+    <ul id="lista-lembretes"></ul>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw",
+      authDomain: "gcc-contratos.firebaseapp.com",
+      projectId: "gcc-contratos",
+      storageBucket: "gcc-contratos.firebasestorage.app",
+      messagingSenderId: "405415511927",
+      appId: "1:405415511927:web:4612190119302726820372",
+      measurementId: "G-T1T4N9WD5T"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const email = document.getElementById("email");
+    const password = document.getElementById("password");
+    const loginBtn = document.getElementById("login-btn");
+    const registerBtn = document.getElementById("register-btn");
+    const logoutBtn = document.getElementById("logout-btn");
+    const authSection = document.getElementById("auth-section");
+    const appSection = document.getElementById("app-section");
+
+    const empresa = document.getElementById("empresa");
+    const objeto = document.getElementById("objeto");
+    const addContrato = document.getElementById("add-contrato");
+    const listaContratos = document.getElementById("lista-contratos");
+
+    const lembrete = document.getElementById("lembrete");
+    const addLembrete = document.getElementById("add-lembrete");
+    const listaLembretes = document.getElementById("lista-lembretes");
+
+    loginBtn.onclick = () => {
+      signInWithEmailAndPassword(auth, email.value, password.value)
+        .catch(err => alert("Erro no login: " + err.message));
+    };
+
+    registerBtn.onclick = () => {
+      createUserWithEmailAndPassword(auth, email.value, password.value)
+        .catch(err => alert("Erro no registro: " + err.message));
+    };
+
+    logoutBtn.onclick = () => {
+      signOut(auth);
+    };
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        authSection.style.display = "none";
+        appSection.style.display = "block";
+        logoutBtn.style.display = "inline";
+        carregarContratos(user.uid);
+        carregarLembretes(user.uid);
+      } else {
+        authSection.style.display = "block";
+        appSection.style.display = "none";
+        logoutBtn.style.display = "none";
+      }
+    });
+
+    addContrato.onclick = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      await addDoc(collection(db, "contratos"), {
+        uid: user.uid,
+        empresa: empresa.value,
+        objeto: objeto.value,
+        timestamp: Date.now()
+      });
+
+      empresa.value = "";
+      objeto.value = "";
+      carregarContratos(user.uid);
+    };
+
+    async function carregarContratos(uid) {
+      listaContratos.innerHTML = "";
+      const q = query(collection(db, "contratos"), where("uid", "==", uid));
+      const snapshot = await getDocs(q);
+      snapshot.forEach(doc => {
+        const li = document.createElement("li");
+        li.textContent = `${doc.data().empresa} - ${doc.data().objeto}`;
+        listaContratos.appendChild(li);
+      });
+    }
+
+    addLembrete.onclick = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      await addDoc(collection(db, "lembretes"), {
+        uid: user.uid,
+        texto: lembrete.value,
+        timestamp: Date.now()
+      });
+
+      lembrete.value = "";
+      carregarLembretes(user.uid);
+    };
+
+    async function carregarLembretes(uid) {
+      listaLembretes.innerHTML = "";
+      const q = query(collection(db, "lembretes"), where("uid", "==", uid));
+      const snapshot = await getDocs(q);
+      snapshot.forEach(doc => {
+        const li = document.createElement("li");
+        li.textContent = doc.data().texto;
+        listaLembretes.appendChild(li);
+      });
+    }
+  </script>
 </body>
 </html>
