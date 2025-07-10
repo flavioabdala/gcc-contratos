@@ -6,6 +6,7 @@
     <title>Gestão de Contratos</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
@@ -100,6 +101,22 @@
             color: white;
             border-color: #2563eb; /* Darker blue border */
         }
+        /* Style for SEI group containers to enable drag and drop */
+        .sei-group-container {
+            cursor: grab;
+            margin-bottom: 1.5rem; /* Space between groups */
+        }
+        .sei-group-container:active {
+            cursor: grabbing;
+        }
+        /* Styling for contracts within a group */
+        .contract-card-in-group {
+            margin-bottom: 1rem; /* Space between cards in a group */
+            border: 1px solid #e5e7eb; /* Light border for individual cards */
+        }
+        .contract-card-in-group:last-child {
+            margin-bottom: 0; /* No margin for the last card in a group */
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -184,8 +201,15 @@
         <div id="main-page" class="hidden w-full h-full flex flex-col bg-white rounded-xl shadow-lg p-4 md:p-8">
             <div class="bg-purple-700 text-white p-4 rounded-t-xl mb-6 flex flex-col md:flex-row justify-between items-center">
                 <h2 class="text-3xl font-bold text-white mb-4 md:mb-0">Gestão de Contratos</h2>
+                <!-- Contador de Contratos Ativos, Vencendo e Vencidos -->
                 <div class="flex items-center space-x-4">
-                    <span id="user-id-display" class="text-sm text-purple-100 hidden"></span> <button id="logout-button" class="py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200">Sair</button>
+                    <div id="contract-stats" class="text-sm text-purple-100 flex flex-col items-end">
+                        <span>Ativos: <span id="active-contracts-count">0</span></span>
+                        <span class="text-red-300">Vencendo (30 dias): <span id="expiring-contracts-count">0</span></span>
+                        <span class="text-gray-300">Vencidos: <span id="overdue-contracts-count">0</span></span>
+                    </div>
+                    <span id="user-id-display" class="text-sm text-purple-100 hidden"></span>
+                    <button id="logout-button" class="py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200">Sair</button>
                 </div>
             </div>
 
@@ -208,6 +232,7 @@
                     </div>
                 </div>
 
+                <!-- contracts-list agora conterá os grupos de SEI para arrastar e soltar -->
                 <div id="contracts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto flex-grow">
                     <p id="no-contracts-message" class="text-center text-gray-500 col-span-full hidden">Nenhum contrato encontrado.</p>
                 </div>
@@ -810,9 +835,9 @@
             const PUBLIC_COLLECTION_PATH = `artifacts/${APP_ID}/public/data`;
             const USERS_COLLECTION_PATH = `artifacts/${APP_ID}/users`;
 
-            // UI Elements
+            // UI Elements (these are now fetched locally in functions where they are used)
             const loginPage = document.getElementById('login-page');
-            const registerPage = document.getElementById('register-page'); // Corrected assignment
+            const registerPage = document.getElementById('register-page');
             const mainPage = document.getElementById('main-page');
             const showRegisterLink = document.getElementById('show-register');
             const showLoginLink = document.getElementById('show-login');
@@ -823,10 +848,10 @@
             const registerMessage = document.getElementById('register-message');
             const userIdDisplay = document.getElementById('user-id-display');
 
-            const contractsList = document.getElementById('contracts-list');
-            const remindersList = document.getElementById('reminders-list');
-            const inRenewalContractsList = document.getElementById('in-renewal-contracts-list'); // New Element
-            const terminatedContractsList = document.getElementById('terminated-contracts-list');
+            // Elementos para o contador de contratos
+            const activeContractsCountSpan = document.getElementById('active-contracts-count');
+            const expiringContractsCountSpan = document.getElementById('expiring-contracts-count');
+            const overdueContractsCountSpan = document.getElementById('overdue-contracts-count');
 
             const addContractButton = document.getElementById('add-contract-button');
             const addReminderButton = document.getElementById('add-reminder-button');
@@ -844,7 +869,7 @@
             const currentValidityDateInput = document.getElementById('current-validity-date');
             const renewalNumberSelect = document.getElementById('renewal-number');
             const contractValueInput = document.getElementById('contract-value');
-            const unitsCheckboxContainer = document.getElementById('units-checkbox-container'); // Still called this for contract form
+            const unitsCheckboxContainer = document.getElementById('units-checkbox-container');
             const contractObservationsInput = document.getElementById('contract-observations');
 
             const renewContractModal = document.getElementById('renew-contract-modal');
@@ -870,10 +895,10 @@
             const apostilamentoSeiNumberInput = document.getElementById('apostilamento-sei-number');
             const apostilamentoDateInput = document.getElementById('apostilamento-date');
             const apostilamentoUnitsContainer = document.getElementById('apostilamento-units-container');
-            const apostilamentoSelectedUnitsInput = document.getElementById('apostilamento-selected-units'); // Hidden input for selected units
+            const apostilamentoSelectedUnitsInput = document.getElementById('apostilamento-selected-units');
             const apostilamentoReajustePercentageInput = document.getElementById('apostilamento-reajuste-percentage');
             const apostilamentoDesignacaoUnitsContainer = document.getElementById('apostilamento-designacao-units-container');
-            const apostilamentoDesignacaoSelectedUnitsInput = document.getElementById('apostilamento-designacao-selected-units'); // Hidden input
+            const apostilamentoDesignacaoSelectedUnitsInput = document.getElementById('apostilamento-designacao-selected-units');
             const remanejamentoTypeApostilamentoSelect = document.getElementById('remanejamento-type-apostilamento');
             const cedingUnitApostilamentoInput = document.getElementById('ceding-unit-apostilamento');
             const cedingUnitsContainerApostilamento = document.getElementById('ceding-units-container-apostilamento');
@@ -918,7 +943,7 @@
             const checklistItemsContainer = document.getElementById('checklist-items-container');
             const unitConcordanceContainer = document.getElementById('unit-concordance-container');
             const renewalDurationAditivoInput = document.getElementById('renewal-duration-aditivo');
-            const renewalUpdatedValueAditivoInput = document.getElementById('renewal-updated-value-aditivo'); // New input for value
+            const renewalUpdatedValueAditivoInput = document.getElementById('renewal-updated-value-aditivo');
             const finalRenewButton = document.getElementById('final-renew-button');
 
 
@@ -931,16 +956,11 @@
 
             const searchInput = document.getElementById('search-input');
 
-            const noContractsMessage = document.getElementById('no-contracts-message');
-            const noRemindersMessage = document.getElementById('no-reminders-message');
-            const noInRenewalContractsMessage = document.getElementById('no-in-renewal-contracts-message'); // New message element
-            const noTerminatedContractsMessage = document.getElementById('no-terminated-contracts-message');
-
             let currentUserId = null;
             let isAdmin = false;
             let unsubscribeContracts = null;
             let unsubscribeReminders = null;
-            let unsubscribeInRenewalContracts = null; // New unsubscribe variable
+            let unsubscribeInRenewalContracts = null;
             let unsubscribeTerminatedContracts = null;
 
             // Updated list of units
@@ -963,6 +983,43 @@
                 "Memorando/Justificativa",
                 "Check List"
             ];
+
+            // Paleta de cores para os grupos de SEI
+            const SEI_COLOR_PALETTE = [
+                '#FFDDC1', // Light Peach
+                '#B0E0E6', // Powder Blue
+                '#DDA0DD', // Plum
+                '#ADD8E6', // Light Blue
+                '#F0E68C', // Khaki
+                '#98FB98', // Pale Green
+                '#FFB6C1', // Light Pink
+                '#C0C0C0', // Silver
+                '#FFC0CB', // Pink
+                '#BDB76B', // Dark Khaki
+                '#87CEEB', // Sky Blue
+                '#E6E6FA', // Lavender
+                '#F5DEB3', // Wheat
+                '#A9A9A9', // Dark Gray
+                '#FFE4B5', // Moccasin
+                '#D8BFD8'  // Thistle
+            ];
+            let seiColorMap = {}; // Mapeamento de número SEI para cor
+            let nextColorIndex = 0;
+
+            /**
+             * Retorna uma cor para um dado número SEI. Se o SEI já tiver uma cor, retorna a mesma.
+             * Caso contrário, atribui a próxima cor da paleta.
+             * @param {string} seiNumber - O número SEI (raiz).
+             * @returns {string} A cor hexadecimal.
+             */
+            function getSeiColor(seiNumber) {
+                if (!seiColorMap[seiNumber]) {
+                    seiColorMap[seiNumber] = SEI_COLOR_PALETTE[nextColorIndex % SEI_COLOR_PALETTE.length];
+                    nextColorIndex++;
+                }
+                return seiColorMap[seiNumber];
+            }
+
 
             // Format currency
             function formatCurrency(value) {
@@ -1042,7 +1099,7 @@
                 // Lógica para mostrar/esconder botões de adicionar com base na aba ativa E status de admin
                 if (addContractBtn) {
                     if (isAdmin) {
-                        if (document.getElementById('contracts-tab')?.classList.contains('active')) { // Adicionado verificação de null
+                        if (document.getElementById('contracts-tab')?.classList.contains('active')) {
                             addContractBtn.classList.remove('hidden');
                         } else {
                             addContractBtn.classList.add('hidden');
@@ -1054,7 +1111,7 @@
 
                 if (addReminderBtn) {
                     if (isAdmin) {
-                        if (document.getElementById('reminders-tab')?.classList.contains('active')) { // Adicionado verificação de null
+                        if (document.getElementById('reminders-tab')?.classList.contains('active')) {
                             addReminderBtn.classList.remove('hidden');
                         } else {
                             addReminderBtn.classList.add('hidden');
@@ -1121,12 +1178,20 @@
                     // Limpa quaisquer listeners de dados se o usuário deslogou
                     if (unsubscribeContracts) unsubscribeContracts();
                     if (unsubscribeReminders) unsubscribeReminders();
-                    if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts(); // Unsubscribe new listener
+                    if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts();
                     if (unsubscribeTerminatedContracts) unsubscribeTerminatedContracts();
+
+                    // Fetch elements locally to clear them
+                    const contractsList = document.getElementById('contracts-list');
+                    const remindersList = document.getElementById('reminders-list');
+                    const inRenewalContractsList = document.getElementById('in-renewal-contracts-list');
+                    const terminatedContractsList = document.getElementById('terminated-contracts-list');
+
                     if (contractsList) contractsList.innerHTML = '';
                     if (remindersList) remindersList.innerHTML = '';
-                    if (inRenewalContractsList) inRenewalContractsList.innerHTML = ''; // Clear new list
+                    if (inRenewalContractsList) inRenewalContractsList.innerHTML = '';
                     if (terminatedContractsList) terminatedContractsList.innerHTML = '';
+
                     currentUserId = null;
                     isAdmin = false;
                 }
@@ -1233,28 +1298,29 @@
 
             // --- Contract Management ---
             async function loadContracts() {
-                // Verifica se há um usuário autenticado antes de tentar carregar os dados
                 if (!currentUserId) {
                     console.log("loadContracts: Usuário não autenticado, não carregando contratos.");
+                    const contractsList = document.getElementById('contracts-list');
+                    const noContractsMessage = document.getElementById('no-contracts-message');
                     if (contractsList) contractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos.</p>';
                     if (noContractsMessage) noContractsMessage.classList.add('hidden');
                     return;
                 }
-                if (unsubscribeContracts) unsubscribeContracts(); // Desinscreve o listener anterior
+                if (unsubscribeContracts) unsubscribeContracts();
                 console.log('loadContracts: Tentando configurar listener para contratos. Coleção:', `${PUBLIC_COLLECTION_PATH}/contracts`);
                 unsubscribeContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`)
-                    .where('isInRenewal', '==', false) // Only show contracts not in renewal
-                    // .orderBy('currentValidityDate', 'asc') // REMOVED to avoid composite index error
-                    .onSnapshot(snapshot => {
-                        if (contractsList) contractsList.innerHTML = ''; // Limpa a lista atual
+                    .where('isInRenewal', '==', false)
+                    .onSnapshot(async snapshot => { // Adicionado 'async' aqui
+                        const contractsList = document.getElementById('contracts-list'); // Fetch locally
+                        if (contractsList) contractsList.innerHTML = '';
                         const contracts = [];
                         snapshot.forEach(doc => {
                             const contract = { id: doc.id, ...doc.data() };
                             contracts.push(contract);
                         });
-                        // Sort in JavaScript memory
-                        contracts.sort((a, b) => new Date(a.currentValidityDate) - new Date(b.currentValidityDate));
-                        displayContracts(contracts);
+                        // Obtém a ordem salva dos grupos SEI antes de exibir
+                        const savedSeiOrder = await getSeiGroupOrder();
+                        displayContracts(contracts, savedSeiOrder);
                         checkEmptyState('contracts');
                     }, error => {
                         console.error("loadContracts: Erro ao carregar contratos em tempo real:", error);
@@ -1263,29 +1329,29 @@
             }
 
             async function loadInRenewalContracts() {
-                // Verifica se há um usuário autenticado antes de tentar carregar os dados
                 if (!currentUserId) {
                     console.log("loadInRenewalContracts: Usuário não autenticado, não carregando contratos em renovação.");
+                    const inRenewalContractsList = document.getElementById('in-renewal-contracts-list');
+                    const noInRenewalContractsMessage = document.getElementById('no-in-renewal-contracts-message');
                     if (inRenewalContractsList) inRenewalContractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos em renovação.</p>';
                     if (noInRenewalContractsMessage) noInRenewalContractsMessage.classList.add('hidden');
                     return;
                 }
-                if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts(); // Desinscreve o listener anterior
+                if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts();
                 console.log('loadInRenewalContracts: Tentando configurar listener para contratos em renovação. Coleção:', `${PUBLIC_COLLECTION_PATH}/contracts`);
                 unsubscribeInRenewalContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`)
-                    .where('isInRenewal', '==', true) // Only show contracts in renewal
-                    // .orderBy('currentValidityDate', 'asc') // REMOVED to avoid composite index error
+                    .where('isInRenewal', '==', true)
                     .onSnapshot(snapshot => {
-                        if (inRenewalContractsList) inRenewalContractsList.innerHTML = ''; // Clear the current list
+                        const inRenewalContractsList = document.getElementById('in-renewal-contracts-list'); // Fetch locally
+                        if (inRenewalContractsList) inRenewalContractsList.innerHTML = '';
                         const contracts = [];
                         snapshot.forEach(doc => {
                             const contract = { id: doc.id, ...doc.data() };
                             contracts.push(contract);
                         });
-                        // Sort in JavaScript memory
                         contracts.sort((a, b) => new Date(a.currentValidityDate) - new Date(b.currentValidityDate));
                         displayInRenewalContracts(contracts);
-                        checkEmptyState('in-renewal-contracts');
+                        checkEmptyState('in-renewal'); // Pass 'in-renewal' as tabName
                     }, error => {
                         console.error("loadInRenewalContracts: Erro ao carregar contratos em renovação em tempo real:", error);
                         showMessageModal('Erro', `Erro ao carregar contratos em renovação: ${error.message}. Verifique as permissões do Firestore.`);
@@ -1293,19 +1359,21 @@
             }
 
             async function loadTerminatedContracts() {
-                // Verifica se há um usuário autenticado antes de tentar carregar os dados
                 if (!currentUserId) {
                     console.log("loadTerminatedContracts: Usuário não autenticado, não carregando contratos encerrados.");
+                    const terminatedContractsList = document.getElementById('terminated-contracts-list');
+                    const noTerminatedContractsMessage = document.getElementById('no-terminated-contracts-message');
                     if (terminatedContractsList) terminatedContractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos encerrados.</p>';
                     if (noTerminatedContractsMessage) noTerminatedContractsMessage.classList.add('hidden');
                     return;
                 }
-                if (unsubscribeTerminatedContracts) unsubscribeTerminatedContracts(); // Desinscreve o listener anterior
+                if (unsubscribeTerminatedContracts) unsubscribeTerminatedContracts();
                 console.log('loadTerminatedContracts: Tentando configurar listener para contratos encerrados. Coleção:', `${PUBLIC_COLLECTION_PATH}/terminated_contracts`);
                 unsubscribeTerminatedContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/terminated_contracts`)
-                    .orderBy('terminationDate', 'desc') // Ordena por data de encerramento
+                    .orderBy('terminationDate', 'desc')
                     .onSnapshot(snapshot => {
-                        if (terminatedContractsList) terminatedContractsList.innerHTML = ''; // Limpa a lista atual
+                        const terminatedContractsList = document.getElementById('terminated-contracts-list'); // Fetch locally
+                        if (terminatedContractsList) terminatedContractsList.innerHTML = '';
                         const terminatedContracts = [];
                         snapshot.forEach(doc => {
                             const contract = { id: doc.id, ...doc.data() };
@@ -1319,13 +1387,51 @@
                     });
             }
 
-            function displayContracts(contractsToDisplay) {
+            /**
+             * Exibe os contratos na interface, agrupando por SEI, aplicando cores e ordenando.
+             * @param {Array<Object>} contractsToDisplay - Lista de contratos a serem exibidos.
+             * @param {Array<string>} savedSeiOrder - Ordem salva dos grupos SEI pelo usuário.
+             */
+            function displayContracts(contractsToDisplay, savedSeiOrder = []) {
+                const contractsList = document.getElementById('contracts-list');
+                const noContractsMessage = document.getElementById('no-contracts-message');
+
                 if (!contractsList || !noContractsMessage) {
                     console.warn("displayContracts: Elementos 'contractsList' ou 'noContractsMessage' não encontrados.");
                     return;
                 }
 
-                contractsList.innerHTML = '';
+                contractsList.innerHTML = ''; // Limpa a lista antes de renderizar
+
+                // --- Atualiza Contadores ---
+                let activeCount = 0;
+                let expiringCount = 0;
+                let overdueCount = 0;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                contractsToDisplay.forEach(contract => {
+                    const validityDate = new Date(contract.currentValidityDate);
+                    validityDate.setHours(0, 0, 0, 0);
+                    const diffTime = validityDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays >= 0) {
+                        activeCount++;
+                        if (diffDays <= 30) {
+                            expiringCount++;
+                        }
+                    } else {
+                        overdueCount++;
+                    }
+                });
+
+                if (activeContractsCountSpan) activeContractsCountSpan.textContent = activeCount;
+                if (expiringContractsCountSpan) expiringContractsCountSpan.textContent = expiringCount;
+                if (overdueContractsCountSpan) overdueContractsCountSpan.textContent = overdueCount;
+                // --- Fim da Atualização de Contadores ---
+
+
                 if (contractsToDisplay.length === 0) {
                     noContractsMessage.classList.remove('hidden');
                     return;
@@ -1333,84 +1439,164 @@
                     noContractsMessage.classList.add('hidden');
                 }
 
-                contractsToDisplay.forEach(contract => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0); // Normaliza para o início do dia
-                    const validityDate = new Date(contract.currentValidityDate);
-                    validityDate.setHours(0, 0, 0, 0); // Normaliza para o início do dia
-
-                    const diffTime = validityDate.getTime() - today.getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                    let statusClass = '';
-                    let statusText = '';
-                    let validityHighlightClass = ''; // New class for highlighting validity
-
-                    if (diffDays <= 30 && diffDays >= 0) {
-                        statusClass = 'bg-red-500 text-white flashing';
-                        statusText = `Vence em ${diffDays} dias!`;
-                        validityHighlightClass = 'text-red-600 font-bold flashing'; // Flashing for validity
-                    } else if (diffDays > 30 && diffDays <= 90) {
-                        statusClass = 'bg-yellow-500 text-gray-900';
-                        statusText = `Vence em ${diffDays} dias`;
-                        validityHighlightClass = 'text-yellow-600 font-bold'; // Highlight for validity
-                    } else if (diffDays <= 180 && diffDays > 90) { // New condition for flashing 6 months or less
-                        statusClass = 'bg-yellow-500 text-gray-900';
-                        statusText = `Vence em ${diffDays} dias`;
-                        validityHighlightClass = 'text-orange-600 font-bold flashing'; // Flashing for validity
+                // 1. Agrupa contratos por seiNumber (raiz)
+                const groupedContracts = contractsToDisplay.reduce((acc, contract) => {
+                    const seiRoot = contract.seiNumber.split('-')[0]; // Pega a parte principal do SEI
+                    if (!acc[seiRoot]) {
+                        acc[seiRoot] = [];
                     }
-                    else if (diffDays < 0) {
-                        statusClass = 'bg-gray-400 text-white';
-                        statusText = `Vencido há ${Math.abs(diffDays)} dias`;
-                        validityHighlightClass = 'text-gray-600 font-bold'; // Highlight for validity
-                    } else {
-                        statusClass = 'bg-green-500 text-white';
-                        statusText = `Ativo`;
-                        validityHighlightClass = 'text-green-600 font-bold'; // Highlight for validity
-                    }
+                    acc[seiRoot].push(contract);
+                    return acc;
+                }, {});
 
-                    const contractCard = document.createElement('div');
-                    contractCard.className = `bg-white rounded-lg shadow-md p-6 flex flex-col justify-between ${diffDays < 0 ? 'opacity-70' : ''}`;
-                    contractCard.innerHTML = `
-                        <div class="space-y-3">
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-xl font-semibold text-gray-800 truncate">${contract.companyName}</h3>
-                                <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass}">${statusText}</span>
-                            </div>
-                            <p class="text-gray-600 text-sm"><strong>SEI:</strong> ${contract.seiNumber}</p>
-                            <p class="text-gray-600 text-sm"><strong>Contrato:</strong> ${contract.contractNumber}</p>
-                            <p class="text-gray-600 text-sm"><strong>Objeto:</strong> ${contract.contractObject}</p>
-                            <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> <span class="${validityHighlightClass}">${new Date(contract.currentValidityDate).toLocaleDateString('pt-BR')}</span></p>
-                            <p class="text-gray-600 text-sm"><strong>Renovação:</strong> ${contract.renewalNumber}ª</p>
-                            <p class="text-gray-600 text-sm"><strong>Valor:</strong> ${formatCurrency(contract.contractValue)}</p>
-                            <p class="text-gray-600 text-sm"><strong>Lei:</strong> ${contract.lawType === '8666' ? '8.666/93' : '14.133/21'}</p>
-                            <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${contract.participatingUnits ? contract.participatingUnits.join(', ') : 'N/A'}</p>
-                            ${contract.observations ? `<p class="text-gray-600 text-sm"><strong>Obs:</strong> ${contract.observations}</p>` : ''}
-                        </div>
-                        <div class="mt-4 flex flex-wrap gap-2 justify-end">
-                            <button class="view-history-button py-2 px-3 bg-indigo-500 text-white rounded-md text-sm hover:bg-indigo-600 transition duration-200" data-id="${contract.id}">
-                                <i class="fas fa-history mr-1"></i> Histórico
-                            </button>
-                            <!-- Botão Renovar Removido conforme solicitação -->
-                            <button class="addendum-button py-2 px-3 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
-                                <i class="fas fa-file-invoice mr-1"></i> Apost./Adit.
-                            </button>
-                            <button class="edit-button py-2 px-3 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
-                                <i class="fas fa-edit mr-1"></i> Editar
-                            </button>
-                            <button class="terminate-button py-2 px-3 bg-red-500 text-white rounded-md text-sm hover:bg-red-600 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
-                                <i class="fas fa-times-circle mr-1"></i> Encerrar
-                            </button>
-                        </div>
-                    `;
-                    contractsList.appendChild(contractCard);
+                // 2. Atribui cores e prepara os grupos
+                const seiGroups = Object.keys(groupedContracts).map(seiRoot => {
+                    const contractsInGroup = groupedContracts[seiRoot];
+                    const groupColor = getSeiColor(seiRoot); // Obtém ou atribui a cor do grupo
+
+                    // Ordena contratos dentro do grupo por contractNumber para consistência (ex: 12345-01 antes de 12345-02)
+                    contractsInGroup.sort((a, b) => {
+                        const numA = parseInt(a.contractNumber.split('-')[1] || '0');
+                        const numB = parseInt(b.contractNumber.split('-')[1] || '0');
+                        return numA - numB;
+                    });
+
+                    // Determina a data da última atividade para o grupo (para ordenação)
+                    const lastActivityDate = contractsInGroup.reduce((latestDate, contract) => {
+                        const contractLastActivity = contract.lastActivityDate ? new Date(contract.lastActivityDate.toDate()) : (contract.createdAt ? new Date(contract.createdAt.toDate()) : new Date(0));
+                        return contractLastActivity > latestDate ? contractLastActivity : latestDate;
+                    }, new Date(0)); // Inicializa com uma data bem antiga
+
+                    // Verifica se algum contrato no grupo está marcado como estrela
+                    const isGroupStarred = contractsInGroup.some(contract => contract.isStarred);
+
+                    return {
+                        seiRoot,
+                        color: groupColor,
+                        contracts: contractsInGroup,
+                        lastActivityDate: lastActivityDate,
+                        isStarred: isGroupStarred
+                    };
                 });
 
-                // Adiciona event listeners para os novos botões
+                // 3. Ordena os grupos: favoritados primeiro, depois pela ordem salva, depois por última atividade (desc)
+                seiGroups.sort((a, b) => {
+                    // Favoritados vêm primeiro
+                    if (a.isStarred && !b.isStarred) return -1;
+                    if (!a.isStarred && b.isStarred) return 1;
+
+                    // Em seguida, usa a ordem salva pelo usuário
+                    const indexA = savedSeiOrder.indexOf(a.seiRoot);
+                    const indexB = savedSeiOrder.indexOf(b.seiRoot);
+
+                    if (indexA !== -1 && indexB !== -1) {
+                        return indexA - indexB; // Ambos estão na ordem salva, ordena por índice
+                    }
+                    if (indexA !== -1) return -1; // A está na ordem salva, B não, então A vem primeiro
+                    if (indexB !== -1) return 1;  // B está na ordem salva, A não, então B vem primeiro
+
+                    // Se nenhum estiver na ordem salva (ou se ambos são favoritados/não favoritados), ordena por última atividade
+                    return b.lastActivityDate.getTime() - a.lastActivityDate.getTime();
+                });
+
+
+                // 4. Renderiza os grupos e seus contratos
+                seiGroups.forEach(group => {
+                    const groupContainer = document.createElement('div');
+                    groupContainer.className = `sei-group-container border-l-8 rounded-lg shadow-md p-4 bg-white`;
+                    groupContainer.style.borderColor = group.color;
+                    groupContainer.setAttribute('data-sei-root', group.seiRoot); // Para Sortable.js
+
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = `flex justify-between items-center mb-4 pb-2 border-b border-gray-200`;
+                    groupHeader.innerHTML = `
+                        <h3 class="text-xl font-bold text-gray-800">Processo SEI: ${group.seiRoot}</h3>
+                        <span class="text-sm font-semibold text-gray-600">Total no Grupo: ${group.contracts.length}</span>
+                    `;
+                    groupContainer.appendChild(groupHeader);
+
+                    group.contracts.forEach(contract => {
+                        const validityDate = new Date(contract.currentValidityDate);
+                        validityDate.setHours(0, 0, 0, 0);
+
+                        const diffTime = validityDate.getTime() - today.getTime();
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        let statusClass = '';
+                        let statusText = '';
+                        let validityHighlightClass = '';
+
+                        if (diffDays <= 30 && diffDays >= 0) {
+                            statusClass = 'bg-red-500 text-white flashing';
+                            statusText = `Vence em ${diffDays} dias!`;
+                            validityHighlightClass = 'text-red-600 font-bold flashing';
+                        } else if (diffDays > 30 && diffDays <= 90) {
+                            statusClass = 'bg-yellow-500 text-gray-900';
+                            statusText = `Vence em ${diffDays} dias`;
+                            validityHighlightClass = 'text-yellow-600 font-bold';
+                        } else if (diffDays <= 180 && diffDays > 90) {
+                            statusClass = 'bg-yellow-500 text-gray-900';
+                            statusText = `Vence em ${diffDays} dias`;
+                            validityHighlightClass = 'text-orange-600 font-bold flashing';
+                        }
+                        else if (diffDays < 0) {
+                            statusClass = 'bg-gray-400 text-white';
+                            statusText = `Vencido há ${Math.abs(diffDays)} dias`;
+                            validityHighlightClass = 'text-gray-600 font-bold';
+                        } else {
+                            statusClass = 'bg-green-500 text-white';
+                            statusText = `Ativo`;
+                            validityHighlightClass = 'text-green-600 font-bold';
+                        }
+
+                        const contractCard = document.createElement('div');
+                        contractCard.className = `contract-card-in-group bg-white rounded-lg shadow-sm p-6 flex flex-col justify-between relative`; // Adicionado relative para posicionamento da estrela
+                        contractCard.setAttribute('data-id', contract.id); // Necessário para Sortable.js se for reordenar cards individuais
+                        contractCard.innerHTML = `
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center mb-2">
+                                    <h3 class="text-xl font-semibold text-gray-800 truncate">${contract.companyName}</h3>
+                                    <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass}">${statusText}</span>
+                                </div>
+                                <p class="text-gray-600 text-sm"><strong>SEI:</strong> ${contract.seiNumber}</p>
+                                <p class="text-gray-600 text-sm"><strong>Contrato:</strong> ${contract.contractNumber}</p>
+                                <p class="text-gray-600 text-sm"><strong>Objeto:</strong> ${contract.contractObject}</p>
+                                <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> <span class="${validityHighlightClass}">${new Date(contract.currentValidityDate).toLocaleDateString('pt-BR')}</span></p>
+                                <p class="text-gray-600 text-sm"><strong>Renovação:</strong> ${contract.renewalNumber}ª</p>
+                                <p class="text-gray-600 text-sm"><strong>Valor:</strong> ${formatCurrency(contract.contractValue)}</p>
+                                <p class="text-gray-600 text-sm"><strong>Lei:</strong> ${contract.lawType === '8666' ? '8.666/93' : '14.133/21'}</p>
+                                <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${contract.participatingUnits ? contract.participatingUnits.join(', ') : 'N/A'}</p>
+                                ${contract.observations ? `<p class="text-gray-600 text-sm"><strong>Obs:</strong> ${contract.observations}</p>` : ''}
+                            </div>
+                            <!-- Ícone de estrela para favoritar -->
+                            <div class="absolute top-4 right-4">
+                                <i class="fas fa-star text-yellow-400 cursor-pointer star-icon ${contract.isStarred ? '' : 'hidden'}" data-id="${contract.id}" data-starred="true"></i>
+                                <i class="far fa-star text-gray-400 cursor-pointer star-icon ${contract.isStarred ? 'hidden' : ''}" data-id="${contract.id}" data-starred="false"></i>
+                            </div>
+                            <div class="mt-4 flex flex-wrap gap-2 justify-end">
+                                <button class="view-history-button py-2 px-3 bg-indigo-500 text-white rounded-md text-sm hover:bg-indigo-600 transition duration-200" data-id="${contract.id}">
+                                    <i class="fas fa-history mr-1"></i> Histórico
+                                </button>
+                                <button class="addendum-button py-2 px-3 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
+                                    <i class="fas fa-file-invoice mr-1"></i> Apost./Adit.
+                                </button>
+                                <button class="edit-button py-2 px-3 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
+                                    <i class="fas fa-edit mr-1"></i> Editar
+                                </button>
+                                <button class="terminate-button py-2 px-3 bg-red-500 text-white rounded-md text-sm hover:bg-red-600 transition duration-200 ${isAdmin ? '' : 'hidden'}" data-id="${contract.id}">
+                                    <i class="fas fa-times-circle mr-1"></i> Encerrar
+                                </button>
+                            </div>
+                        `;
+                        groupContainer.appendChild(contractCard);
+                    });
+                    contractsList.appendChild(groupContainer);
+                });
+
+                // Adiciona listeners para os botões de ação e estrelas
                 document.querySelectorAll('.edit-button').forEach(button => {
                     button.addEventListener('click', (e) => editContract(e.currentTarget.dataset.id));
                 });
-                // Event listener para renew-button removido
                 document.querySelectorAll('.addendum-button').forEach(button => {
                     button.addEventListener('click', (e) => openAddendumModal(e.currentTarget.dataset.id));
                 });
@@ -1420,10 +1606,76 @@
                 document.querySelectorAll('.view-history-button').forEach(button => {
                     button.addEventListener('click', (e) => viewContractHistory(e.currentTarget.dataset.id));
                 });
-                setAdminPermissions(isAdmin); // Reaplica a visibilidade com base no status de administrador
+                document.querySelectorAll('.star-icon').forEach(icon => {
+                    icon.addEventListener('click', async (e) => {
+                        const contractId = e.currentTarget.dataset.id;
+                        const isCurrentlyStarred = e.currentTarget.dataset.starred === 'true';
+                        await toggleStar(contractId, !isCurrentlyStarred);
+                    });
+                });
+                setAdminPermissions(isAdmin);
+
+                // Inicializa Sortable.js para os grupos SEI
+                if (Sortable && contractsList) {
+                    new Sortable(contractsList, {
+                        animation: 150,
+                        handle: '.sei-group-container', // Permite arrastar apenas o contêiner do grupo
+                        onEnd: function (evt) {
+                            // Atualiza a ordem dos grupos no Firestore
+                            const newOrder = Array.from(evt.from.children).map(el => el.dataset.seiRoot);
+                            updateSeiGroupOrder(newOrder);
+                        }
+                    });
+                }
             }
 
+            // Função para atualizar o status de estrela (favorito) de um contrato
+            async function toggleStar(contractId, newStarredStatus) {
+                try {
+                    const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
+                    await contractRef.update({
+                        isStarred: newStarredStatus,
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza a data de atividade
+                    });
+                    console.log(`Contrato ${contractId} status de estrela atualizado para ${newStarredStatus}`);
+                } catch (error) {
+                    console.error("Erro ao alternar status de estrela:", error);
+                    showMessageModal('Erro', `Não foi possível alterar o status de favorito: ${error.message}`);
+                }
+            }
+
+            // Funções para salvar e carregar a ordem dos grupos SEI no Firestore
+            async function updateSeiGroupOrder(newOrder) {
+                if (!currentUserId) return;
+                try {
+                    const userPrefsRef = db.collection(USERS_COLLECTION_PATH).doc(currentUserId).collection('preferences').doc('contractGroupOrder');
+                    await userPrefsRef.set({ order: newOrder }, { merge: true });
+                    console.log("Ordem dos grupos SEI atualizada no Firestore.");
+                } catch (error) {
+                    console.error("Erro ao salvar ordem dos grupos SEI:", error);
+                }
+            }
+
+            async function getSeiGroupOrder() {
+                if (!currentUserId) return [];
+                try {
+                    const userPrefsRef = db.collection(USERS_COLLECTION_PATH).doc(currentUserId).collection('preferences').doc('contractGroupOrder');
+                    const doc = await userPrefsRef.get();
+                    if (doc.exists && doc.data().order) {
+                        return doc.data().order;
+                    }
+                    return [];
+                } catch (error) {
+                    console.error("Erro ao carregar ordem dos grupos SEI:", error);
+                    return [];
+                }
+            }
+
+
             function displayInRenewalContracts(contractsToDisplay) {
+                const inRenewalContractsList = document.getElementById('in-renewal-contracts-list'); // Fetch locally
+                const noInRenewalContractsMessage = document.getElementById('no-in-renewal-contracts-message'); // Fetch locally
+
                 if (!inRenewalContractsList || !noInRenewalContractsMessage) {
                     console.warn("displayInRenewalContracts: Elementos 'inRenewalContractsList' ou 'noInRenewalContractsMessage' não encontrados.");
                     return;
@@ -1473,10 +1725,13 @@
                 document.querySelectorAll('.continue-renewal-button').forEach(button => {
                     button.addEventListener('click', (e) => openAditivoRenewalChecklistModal(e.currentTarget.dataset.id));
                 });
-                setAdminPermissions(isAdmin); // Reapply permissions
+                setAdminPermissions(isAdmin);
             }
 
             function displayTerminatedContracts(contractsToDisplay) {
+                const terminatedContractsList = document.getElementById('terminated-contracts-list'); // Fetch locally
+                const noTerminatedContractsMessage = document.getElementById('no-terminated-contracts-message'); // Fetch locally
+
                 if (!terminatedContractsList || !noTerminatedContractsMessage) {
                     console.warn("displayTerminatedContracts: Elementos 'terminatedContractsList' ou 'noTerminatedContractsMessage' não encontrados.");
                     return;
@@ -1525,7 +1780,7 @@
                 document.querySelectorAll('.delete-button[data-collection="terminated_contracts"]').forEach(button => {
                     button.addEventListener('click', (e) => deleteContract(e.currentTarget.dataset.id, 'terminated_contracts'));
                 });
-                setAdminPermissions(isAdmin); // Reaplica a visibilidade com base no status de administrador
+                setAdminPermissions(isAdmin);
             }
 
             // Search functionality
@@ -1536,19 +1791,19 @@
                     let query = contractsRef;
 
                     if (searchTerm) {
-                        if (unsubscribeContracts) unsubscribeContracts(); // Para o listener em tempo real para busca
+                        if (unsubscribeContracts) unsubscribeContracts();
                         const snapshot = await contractsRef.get();
                         let filteredContracts = [];
                         snapshot.forEach(doc => {
                             const data = doc.data();
-                            const contractString = JSON.stringify(data).toLowerCase(); // Busca em todos os campos
+                            const contractString = JSON.stringify(data).toLowerCase();
                             if (contractString.includes(searchTerm)) {
                                 filteredContracts.push({ id: doc.id, ...data });
                             }
                         });
-                        displayContracts(filteredContracts);
+                        const savedSeiOrder = await getSeiGroupOrder(); // Obtém a ordem salva para manter a consistência na busca
+                        displayContracts(filteredContracts, savedSeiOrder);
                     } else {
-                        // Se o termo de busca estiver vazio, reinicia o listener em tempo real
                         loadContracts();
                     }
                 });
@@ -1558,9 +1813,8 @@
             if (addContractButton) {
                 addContractButton.addEventListener('click', () => {
                     if (contractForm) contractForm.reset();
-                    if (contractForm) contractForm.dataset.id = ''; // Limpa o ID para um novo contrato
+                    if (contractForm) contractForm.dataset.id = '';
                     if (contractFormTitle) contractFormTitle.textContent = 'Adicionar Novo Contrato';
-                    // Ensure a hidden input exists for contract units if not already there
                     let contractSelectedUnitsInput = document.getElementById('contract-selected-units');
                     if (!contractSelectedUnitsInput) {
                         contractSelectedUnitsInput = document.createElement('input');
@@ -1569,8 +1823,8 @@
                         unitsCheckboxContainer.appendChild(contractSelectedUnitsInput);
                     }
                     populateUnitButtons(unitsCheckboxContainer, contractSelectedUnitsInput, []);
-                    if (maxContractTermInput) maxContractTermInput.value = ''; // Limpa o termo calculado
-                    if (contractValueInput) contractValueInput.value = ''; // Limpa o valor
+                    if (maxContractTermInput) maxContractTermInput.value = '';
+                    if (contractValueInput) contractValueInput.value = '';
                     showModal(contractFormModal);
                 });
             }
@@ -1592,7 +1846,6 @@
                     const contractValue = parseCurrency(contractValueInput.value);
                     const observations = contractObservationsInput.value;
 
-                    // Get selected units from the hidden input, parsing JSON
                     const participatingUnits = JSON.parse(document.getElementById('contract-selected-units')?.value || '[]');
 
                     const contractData = {
@@ -1607,15 +1860,16 @@
                         contractValue,
                         participatingUnits,
                         observations,
-                        isInRenewal: false, // Default to false for new or edited contracts
+                        isInRenewal: false,
+                        isStarred: false, // Novo contrato não é favoritado por padrão
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        contractHistory: [] // Inicializa histórico vazio
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Nova data de última atividade
+                        contractHistory: []
                     };
 
                     try {
                         if (contractId) {
-                            // Atualiza contrato existente
                             const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
                             const oldContractSnap = await contractRef.get();
                             const oldContractData = oldContractSnap.data();
@@ -1627,11 +1881,11 @@
                                 changedBy: currentUserId
                             };
                             contractData.contractHistory = firebase.firestore.FieldValue.arrayUnion(historyEntry);
+                            contractData.lastActivityDate = firebase.firestore.FieldValue.serverTimestamp(); // Atualiza data de atividade
 
                             await contractRef.update(contractData);
                             showMessageModal('Sucesso', 'Contrato atualizado com sucesso!');
                         } else {
-                            // Adiciona novo contrato
                             contractData.contractHistory.push({
                                 type: 'Criação',
                                 date: new Date().toISOString().split('T')[0],
@@ -1654,7 +1908,7 @@
             function getContractChanges(oldData, newData) {
                 const changes = [];
                 for (const key in newData) {
-                    if (oldData[key] !== newData[key] && key !== 'updatedAt' && key !== 'createdAt' && key !== 'contractHistory') {
+                    if (oldData[key] !== newData[key] && key !== 'updatedAt' && key !== 'createdAt' && key !== 'contractHistory' && key !== 'lastActivityDate') {
                         if (Array.isArray(oldData[key]) && Array.isArray(newData[key])) {
                             const oldSet = new Set(oldData[key]);
                             const newSet = new Set(newData[key]);
@@ -1690,11 +1944,10 @@
                         if (lawTypeSelect) lawTypeSelect.value = contract.lawType;
                         if (currentValidityDateInput) currentValidityDateInput.value = contract.currentValidityDate;
                         if (renewalNumberSelect) renewalNumberSelect.value = contract.renewalNumber;
-                        if (contractValueInput) contractValueInput.value = formatCurrency(contract.contractValue); // Formata para exibição
+                        if (contractValueInput) contractValueInput.value = formatCurrency(contract.contractValue);
                         if (contractObservationsInput) contractObservationsInput.value = contract.observations || '';
 
-                        calculateMaxContractTerm(); // Recalcula com base na data inicial do processo e tipo de lei
-                        // Ensure a hidden input exists for contract units if not already there
+                        calculateMaxContractTerm();
                         let contractSelectedUnitsInput = document.getElementById('contract-selected-units');
                         if (!contractSelectedUnitsInput) {
                             contractSelectedUnitsInput = document.createElement('input');
@@ -1714,7 +1967,6 @@
             }
 
             async function terminateContract(id) {
-                // Usando um modal personalizado para confirmação
                 showMessageModal('Confirmar Encerramento', 'Tem certeza que deseja encerrar este contrato? Ele será movido para a aba "Encerrados".', true, async () => {
                     try {
                         const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(id);
@@ -1724,21 +1976,18 @@
                         if (doc.exists) {
                             const contractData = doc.data();
 
-                            // Usando um modal personalizado para prompt
                             showMessageModal('Motivo do Encerramento', 'Por favor, insira o motivo do encerramento do contrato (opcional):', true, async (terminationNotes) => {
-                                // Adiciona à coleção terminated_contracts
                                 await terminatedContractsRef.add({
                                     ...contractData,
-                                    terminationDate: new Date().toISOString().split('T')[0], // Data atual
+                                    terminationDate: new Date().toISOString().split('T')[0],
                                     terminationNotes: terminationNotes || 'Motivo não especificado.',
                                     terminatedBy: currentUserId,
                                     terminatedAt: firebase.firestore.FieldValue.serverTimestamp()
                                 });
 
-                                // Exclui da coleção de contratos ativos
                                 await contractRef.delete();
                                 showMessageModal('Sucesso', 'Contrato encerrado e movido para a lista de encerrados.');
-                            }, true); // Passa true para indicar que é um prompt
+                            }, true);
 
                         } else {
                             showMessageModal('Erro', 'Contrato não encontrado para encerramento.');
@@ -1751,7 +2000,6 @@
             }
 
             async function deleteContract(id, collectionName) {
-                // Usando um modal personalizado para confirmação
                 showMessageModal('Confirmar Exclusão', `Tem certeza que deseja EXCLUIR este contrato da coleção "${collectionName}"? Esta ação é irreversível.`, true, async () => {
                     try {
                         await db.collection(`${PUBLIC_COLLECTION_PATH}/${collectionName}`).doc(id).delete();
@@ -1764,7 +2012,6 @@
             }
 
 
-            // Contract History & Renewals (Original Renew Modal - now unused by main cards)
             async function openRenewContractModal(id) {
                 try {
                     const doc = await db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(id).get();
@@ -1774,10 +2021,9 @@
                         if (renewCurrentSeiInput) renewCurrentSeiInput.value = contract.seiNumber;
                         if (renewCurrentValidityDateInput) renewCurrentValidityDateInput.value = contract.currentValidityDate;
                         if (renewUpdatedValueInput) renewUpdatedValueInput.value = formatCurrency(contract.contractValue);
-                        if (renewNextValidityDurationInput) renewNextValidityDurationInput.value = ''; // Limpa para nova entrada
-                        if (renewNextValidityDateInput) renewNextValidityDateInput.value = ''; // Limpa data calculada
+                        if (renewNextValidityDurationInput) renewNextValidityDurationInput.value = '';
+                        if (renewNextValidityDateInput) renewNextValidityDateInput.value = '';
 
-                        // Ensure a hidden input exists for renew units if not already there
                         let renewSelectedUnitsInput = document.getElementById('renew-selected-units');
                         if (!renewSelectedUnitsInput) {
                             renewSelectedUnitsInput = document.createElement('input');
@@ -1814,14 +2060,13 @@
             }
 
 
-            if (renewForm) { // Adicionado verificação de null
+            if (renewForm) {
                 renewForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const contractId = renewContractIdInput.value;
                     const nextValidityDuration = parseInt(renewNextValidityDurationInput.value);
                     const nextValidityDate = renewNextValidityDateInput.value;
                     const updatedValue = parseCurrency(renewUpdatedValueInput.value);
-                    const historyNotes = renewHistoryNotesInput.value; // Obtém o texto do histórico existente
 
                     const renewedParticipatingUnits = JSON.parse(document.getElementById('renew-selected-units')?.value || '[]');
 
@@ -1837,7 +2082,6 @@
                             const oldContract = doc.data();
                             const newRenewalNumber = (oldContract.renewalNumber || 0) + 1;
 
-                            // Prepara nova entrada de histórico
                             const newHistoryEntry = {
                                 type: 'Renovação',
                                 date: new Date().toISOString().split('T')[0],
@@ -1846,12 +2090,12 @@
                             };
 
                             await contractRef.update({
-                                currentValidityDate: newValidityDate,
+                                currentValidityDate: nextValidityDate, // Corrigido para usar nextValidityDate
                                 renewalNumber: newRenewalNumber,
                                 contractValue: updatedValue,
                                 participatingUnits: renewedParticipatingUnits,
-                                // Anexa nova entrada de histórico ao array de histórico existente
                                 contractHistory: firebase.firestore.FieldValue.arrayUnion(newHistoryEntry),
+                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Atualiza data de atividade
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             });
                             showMessageModal('Sucesso', 'Contrato renovado com sucesso!');
@@ -1866,11 +2110,9 @@
                 });
             }
 
-            // Handle Addendum Type Change
             if (addendumTypeSelect) {
                 addendumTypeSelect.addEventListener('change', async () => {
                     const selectedType = addendumTypeSelect.value;
-                    // Hide all options first
                     if (apostilamentoOptions) apostilamentoOptions.classList.add('hidden');
                     if (aditivoOptions) aditivoOptions.classList.add('hidden');
 
@@ -1878,7 +2120,6 @@
                         if (apostilamentoOptions) apostilamentoOptions.classList.remove('hidden');
                         const nextApostilamentoNumber = await getNextSequentialNumber(addendumContractIdInput.value, 'Apostilamento');
                         if (apostilamentoNumberInput) apostilamentoNumberInput.value = `${nextApostilamentoNumber}º Apostilamento`;
-                        // Ensure hidden inputs exist for apostilamento units if not already there
                         let apostilamentoSelectedUnitsInput = document.getElementById('apostilamento-selected-units');
                         if (!apostilamentoSelectedUnitsInput) {
                             apostilamentoSelectedUnitsInput = document.createElement('input');
@@ -1895,14 +2136,12 @@
                         }
                         populateUnitButtons(apostilamentoUnitsContainer, apostilamentoSelectedUnitsInput);
                         populateUnitButtons(apostilamentoDesignacaoUnitsContainer, apostilamentoDesignacaoSelectedUnitsInput);
-                        // Clear tables
                         if (remanejamentoTableBodyApostilamento) remanejamentoTableBodyApostilamento.innerHTML = '';
                         if (remanejamentoTotalApostilamento) remanejamentoTotalApostilamento.textContent = formatCurrency(0);
                     } else if (selectedType === 'Aditivo') {
                         if (aditivoOptions) aditivoOptions.classList.remove('hidden');
                         const nextAditivoNumber = await getNextSequentialNumber(addendumContractIdInput.value, 'Aditivo');
                         if (aditivoNumberInput) aditivoNumberInput.value = `${nextAditivoNumber}º Aditivo`;
-                        // Clear tables
                         if (remanejamentoTableBodyAditivo) remanejamentoTableBodyAditivo.innerHTML = '';
                         if (remanejamentoTotalAditivo) remanejamentoTotalAditivo.textContent = formatCurrency(0);
                         if (acrescimoTableBody) acrescimoTableBody.innerHTML = '';
@@ -1920,8 +2159,7 @@
                     if (doc.exists) {
                         const contract = doc.data();
                         if (addendumContractIdInput) addendumContractIdInput.value = id;
-                        if (addendumTypeSelect) addendumTypeSelect.value = ''; // Reset type selection
-                        // Reset all fields
+                        if (addendumTypeSelect) addendumTypeSelect.value = '';
                         if (apostilamentoNumberInput) apostilamentoNumberInput.value = '';
                         if (apostilamentoSeiNumberInput) apostilamentoSeiNumberInput.value = '';
                         if (apostilamentoDateInput) apostilamentoDateInput.value = '';
@@ -1942,7 +2180,6 @@
                         if (aditivoReequilibrioPercentageInput) aditivoReequilibrioPercentageInput.value = '';
                         if (aditivoTrocaMarcaDescriptionInput) aditivoTrocaMarcaDescriptionInput.value = '';
 
-                        // Hide all options initially
                         if (apostilamentoOptions) apostilamentoOptions.classList.add('hidden');
                         if (aditivoOptions) aditivoOptions.classList.add('hidden');
 
@@ -1964,7 +2201,8 @@
 
                     let historyEntry = {};
                     let updateData = {
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza data de atividade
                     };
 
                     if (addendumType === 'Apostilamento') {
@@ -2011,8 +2249,8 @@
                                     (remanejamentoItems.length > 0 ? `Remanejamento (${remanejamentoType}): ${remanejamentoNotes}. Itens: ${JSON.stringify(remanejamentoItems)}. ` : '') +
                                     (othersNotes ? `Outros: ${othersNotes}.` : ''),
                                 changedBy: currentUserId,
-                                seiNumber: seiNumber, // Store SEI number for this specific document
-                                details: { // More structured details
+                                seiNumber: seiNumber,
+                                details: {
                                     reajustePercentage: reajustePercentage,
                                     newDCOUnits: newDCOUnits,
                                     designacaoUnits: designacaoUnits,
@@ -2081,7 +2319,7 @@
                                 (acrescimoItems.length > 0 ? `Acréscimo: ${JSON.stringify(acrescimoItems)}. ` : '') +
                                 (supressaoItems.length > 0 ? `Supressão: ${JSON.stringify(supressaoItems)}. ` : ''),
                             changedBy: currentUserId,
-                            seiNumber: seiNumber, // Store SEI number for this specific document
+                            seiNumber: seiNumber,
                             details: {
                                 reequilibrioPercentage: reequilibrioPercentage,
                                 trocaMarcaDescription: trocaMarcaDescription,
@@ -2159,18 +2397,20 @@
 
             // --- Reminder Management ---
             async function loadReminders() {
-                // Verifica se há um usuário autenticado antes de tentar carregar os dados
                 if (!currentUserId) {
                     console.log("loadReminders: Usuário não autenticado, não carregando lembretes.");
+                    const remindersList = document.getElementById('reminders-list');
+                    const noRemindersMessage = document.getElementById('no-reminders-message');
                     if (remindersList) remindersList.innerHTML = '<p class="text-center text-gray-500 hidden">Faça login para visualizar os lembretes.</p>';
                     if (noRemindersMessage) noRemindersMessage.classList.add('hidden');
                     return;
                 }
-                if (unsubscribeReminders) unsubscribeReminders(); // Desinscreve o listener anterior
+                if (unsubscribeReminders) unsubscribeReminders();
                 console.log('loadReminders: Tentando configurar listener para lembretes. Coleção:', `${PUBLIC_COLLECTION_PATH}/reminders`);
                 unsubscribeReminders = db.collection(`${PUBLIC_COLLECTION_PATH}/reminders`)
                     .orderBy('reminderDate', 'asc')
                     .onSnapshot(snapshot => {
+                        const remindersList = document.getElementById('reminders-list'); // Fetch locally
                         console.log("Snapshot de lembretes recebido:", snapshot.docs.length, "documentos.");
                         const reminders = [];
                         snapshot.forEach(doc => {
@@ -2186,12 +2426,15 @@
             }
 
             function displayReminders(remindersToDisplay) {
+                const remindersList = document.getElementById('reminders-list'); // Fetch locally
+                const noRemindersMessage = document.getElementById('no-reminders-message'); // Fetch locally
+
                 if (!remindersList || !noRemindersMessage) {
                     console.warn("displayReminders: Elementos 'remindersList' ou 'noRemindersMessage' não encontrados.");
                     return;
                 }
 
-                remindersList.innerHTML = ''; // Always clear the list before re-rendering
+                remindersList.innerHTML = '';
                 console.log("displayReminders: Limpando a lista de lembretes. Reminders a exibir:", remindersToDisplay.length);
 
                 if (remindersToDisplay.length === 0) {
@@ -2256,16 +2499,16 @@
                 document.querySelectorAll('.delete-reminder-button').forEach(button => {
                     button.addEventListener('click', (e) => deleteReminder(e.currentTarget.dataset.id));
                 });
-                setAdminPermissions(isAdmin); // Reaplica a visibilidade com base no status de administrador
+                setAdminPermissions(isAdmin);
             }
 
-            const reminderFormTitle = document.getElementById('reminder-form-title'); // Moved inside DOMContentLoaded
+            const reminderFormTitle = document.getElementById('reminder-form-title');
 
             if (addReminderButton) {
                 addReminderButton.addEventListener('click', () => {
                     console.log("Botão 'Adicionar Lembrete' clicado. Abrindo modal.");
                     if (reminderForm) reminderForm.reset();
-                    if (reminderIdInput) reminderIdInput.value = ''; // Limpa o ID para um novo lembrete
+                    if (reminderIdInput) reminderIdInput.value = '';
                     if (reminderFormTitle) reminderFormTitle.textContent = 'Adicionar Novo Lembrete';
                     showModal(reminderFormModal);
                 });
@@ -2303,7 +2546,6 @@
                         }
                         closeModal('reminder-form-modal');
                         if (reminderForm) reminderForm.reset();
-                        // O onSnapshot em loadReminders() deve recarregar e exibir os lembretes automaticamente
                         console.log("Lembrete salvo no Firestore. onSnapshot deve disparar a atualização da UI.");
                     } catch (error) {
                         console.error("Erro ao salvar lembrete no Firestore:", error);
@@ -2334,7 +2576,6 @@
             }
 
             async function deleteReminder(id) {
-                // Usando um modal personalizado para confirmação
                 showMessageModal('Confirmar Exclusão', 'Tem certeza que deseja excluir este lembrete?', true, async () => {
                     try {
                         await db.collection(`${PUBLIC_COLLECTION_PATH}/reminders`).doc(id).delete();
@@ -2354,7 +2595,7 @@
                     console.warn("populateUnitButtons: containerElement ou targetInput não encontrados.");
                     return;
                 }
-                containerElement.innerHTML = ''; // Clear existing buttons
+                containerElement.innerHTML = '';
 
                 allUnits.forEach(unit => {
                     const button = document.createElement('button');
@@ -2363,13 +2604,11 @@
                     button.className = `unit-button ${selectedUnits.includes(unit) ? 'selected' : ''}`;
                     button.addEventListener('click', () => {
                         button.classList.toggle('selected');
-                        // Update the hidden input with selected units
                         const currentlySelected = Array.from(containerElement.querySelectorAll('.unit-button.selected')).map(btn => btn.textContent);
-                        targetInput.value = JSON.stringify(currentlySelected); // Store as JSON string
+                        targetInput.value = JSON.stringify(currentlySelected);
                     });
                     containerElement.appendChild(button);
                 });
-                // Initialize the hidden input with current selected units
                 targetInput.value = JSON.stringify(selectedUnits);
             }
 
@@ -2390,7 +2629,6 @@
                     <td class="py-2 px-4 border-b"><button type="button" class="remove-item-button text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>
                 `;
 
-                // Add event listeners for new row
                 const quantityInput = newRow.querySelector('.remanejamento-quantidade');
                 const unitValueInput = newRow.querySelector('.remanejamento-valor-unitario');
                 const removeButton = newRow.querySelector('.remove-item-button');
@@ -2466,7 +2704,6 @@
                 const unitsHiddenInput = newRow.querySelector('.acrescimo-unidades-hidden');
                 const unitsContainer = newRow.querySelector('.acrescimo-units-container');
 
-                // Populate unit selection buttons for this specific row
                 populateUnitButtons(unitsContainer, unitsHiddenInput);
 
                 [quantityInput, itemValueInput].forEach(input => {
@@ -2534,7 +2771,6 @@
                 const unitsContainer = newRow.querySelector('.supressao-units-container');
                 const valueInput = newRow.querySelector('.supressao-valor');
 
-                // Populate unit selection buttons for this specific row
                 populateUnitButtons(unitsContainer, unitsHiddenInput);
 
                 if (valueInput) {
@@ -2574,21 +2810,20 @@
                 totalDisplay.textContent = formatCurrency(total);
             }
 
-            // Function to get next sequential number for Apostilamento/Aditivo
-            async function getNextSequentialNumber(contractId, type) {
+            function getNextSequentialNumber(contractId, type) {
                 const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
-                const doc = await contractRef.get();
-                if (doc.exists) {
-                    const contractData = doc.data();
-                    const history = contractData.contractHistory || [];
-                    const filteredHistory = history.filter(entry => entry.type.startsWith(type));
-                    return filteredHistory.length + 1;
-                }
-                return 1; // Default to 1 if no history or contract not found
+                return contractRef.get().then(doc => {
+                    if (doc.exists) {
+                        const contractData = doc.data();
+                        const history = contractData.contractHistory || [];
+                        const filteredHistory = history.filter(entry => entry.type.startsWith(type));
+                        return filteredHistory.length + 1;
+                    }
+                    return 1;
+                });
             }
 
 
-            // --- Calculate Max Contract Term ---
             if (initialProcessDateInput) initialProcessDateInput.addEventListener('change', calculateMaxContractTerm);
             if (lawTypeSelect) lawTypeSelect.addEventListener('change', calculateMaxContractTerm);
 
@@ -2610,9 +2845,9 @@
                 let maxTermMonths = 0;
 
                 if (lawType === '8666') {
-                    maxTermMonths = 60; // 5 anos * 12 meses
+                    maxTermMonths = 60;
                 } else if (lawType === 'nova') {
-                    maxTermMonths = 120; // 10 anos * 12 meses
+                    maxTermMonths = 120;
                 }
 
                 if (maxTermMonths > 0) {
@@ -2624,13 +2859,11 @@
                 }
             }
 
-            // Inicializa a população de unidades no formulário de contrato
             if (addContractButton) {
                 addContractButton.addEventListener('click', () => {
                     if (contractForm) contractForm.reset();
-                    if (contractForm) contractForm.dataset.id = ''; // Limpa o ID para um novo contrato
+                    if (contractForm) contractForm.dataset.id = '';
                     if (contractFormTitle) contractFormTitle.textContent = 'Adicionar Novo Contrato';
-                    // Ensure a hidden input exists for contract units if not already there
                     let contractSelectedUnitsInput = document.getElementById('contract-selected-units');
                     if (!contractSelectedUnitsInput) {
                         contractSelectedUnitsInput = document.createElement('input');
@@ -2639,14 +2872,13 @@
                         unitsCheckboxContainer.appendChild(contractSelectedUnitsInput);
                     }
                     populateUnitButtons(unitsCheckboxContainer, contractSelectedUnitsInput, []);
-                    if (maxContractTermInput) maxContractTermInput.value = ''; // Limpa o termo calculado
-                    if (contractValueInput) contractValueInput.value = ''; // Limpa o valor
+                    if (maxContractTermInput) maxContractTermInput.value = '';
+                    if (contractValueInput) contractValueInput.value = '';
                     showModal(contractFormModal);
                 });
             }
 
 
-            // Event Listeners para as Abas
             document.querySelectorAll('.tab-button').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const tab = e.target.dataset.tab;
@@ -2656,15 +2888,30 @@
 
             function checkEmptyState(tabName) {
                 const listElement = document.getElementById(`${tabName}-list`);
-                const messageElement = document.getElementById(`no-${tabName.replace(/-/g, '')}-message`); // Adjusted for new tab name
+                let messageElement;
 
-                if (!listElement || !messageElement) {
-                    console.warn(`checkEmptyState: Elementos para tab ${tabName} não encontrados.`);
-                    return; // Sai da função se os elementos não forem encontrados
+                if (tabName === 'contracts') {
+                    messageElement = document.getElementById('no-contracts-message');
+                } else if (tabName === 'reminders') {
+                    messageElement = document.getElementById('no-reminders-message');
+                } else if (tabName === 'in-renewal') {
+                    messageElement = document.getElementById('no-in-renewal-contracts-message');
+                } else if (tabName === 'terminated-contracts') {
+                    messageElement = document.getElementById('no-terminated-contracts-message');
+                } else {
+                    console.warn(`checkEmptyState: Nome da aba desconhecido: ${tabName}`);
+                    return;
                 }
 
-                // Verifica se a lista está vazia (ignorando a mensagem de "nenhum contrato/lembrete")
-                const hasActualItems = Array.from(listElement.children).some(child => child !== messageElement);
+                if (!listElement || !messageElement) {
+                    console.warn(`checkEmptyState: Elementos para tab ${tabName} (lista: ${listElement ? 'encontrada' : 'NÃO encontrada'}, mensagem: ${messageElement ? 'encontrada' : 'NÃO encontrada'}) não encontrados.`);
+                    return;
+                }
+
+                // Para a aba de contratos, verifica se há 'sei-group-container'
+                const hasActualItems = tabName === 'contracts'
+                    ? Array.from(listElement.children).some(child => child.classList.contains('sei-group-container'))
+                    : Array.from(listElement.children).some(child => child !== messageElement);
 
                 if (!hasActualItems) {
                     messageElement.classList.remove('hidden');
@@ -2673,18 +2920,17 @@
                 }
             }
 
-            // Formatação de entrada de moeda
             if (contractValueInput) {
                 contractValueInput.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    value = value.replace(/\D/g, ''); // Remove todos os caracteres não-dígitos
+                    value = value.replace(/\D/g, '');
                     if (value === '') {
                         e.target.value = '';
                         return;
                     }
-                    value = (parseInt(value) / 100).toFixed(2); // Converte para número, depois para 2 casas decimais
-                    value = value.replace('.', ','); // Substitui ponto por vírgula para formato brasileiro
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'); // Adiciona separador de milhares
+                    value = (parseInt(value) / 100).toFixed(2);
+                    value = value.replace('.', ',');
+                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
                     e.target.value = `R$ ${value}`;
                 });
             }
@@ -2693,29 +2939,29 @@
             if (renewUpdatedValueInput) {
                 renewUpdatedValueInput.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    value = value.replace(/\D/g, ''); // Remove todos os caracteres não-dígitos
+                    value = value.replace(/\D/g, '');
                     if (value === '') {
                         e.target.value = '';
                         return;
                     }
-                    value = (parseInt(value) / 100).toFixed(2); // Converte para número, depois para 2 casas decimais
-                    value = value.replace('.', ','); // Substitui ponto por vírgula para formato brasileiro
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'); // Adiciona separador de milhares
+                    value = (parseInt(value) / 100).toFixed(2);
+                    value = value.replace('.', ',');
+                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
                     e.target.value = `R$ ${value}`;
                 });
             }
 
-            if (renewalUpdatedValueAditivoInput) { // New input for checklist modal
+            if (renewalUpdatedValueAditivoInput) {
                 renewalUpdatedValueAditivoInput.addEventListener('input', (e) => {
                     let value = e.target.value;
-                    value = value.replace(/\D/g, ''); // Remove todos os caracteres não-dígitos
+                    value = value.replace(/\D/g, '');
                     if (value === '') {
                         e.target.value = '';
                         return;
                     }
-                    value = (parseInt(value) / 100).toFixed(2); // Converte para número, depois para 2 casas decimais
-                    value = value.replace('.', ','); // Substitui ponto por vírgula para formato brasileiro
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'); // Adiciona separador de milhares
+                    value = (parseInt(value) / 100).toFixed(2);
+                    value = value.replace('.', ',');
+                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
                     e.target.value = `R$ ${value}`;
                 });
             }
@@ -2737,20 +2983,19 @@
             }
 
 
-            // --- Aditivo Renewal Checklist Logic ---
             if (triggerAditivoRenewalChecklistButton) {
                 triggerAditivoRenewalChecklistButton.addEventListener('click', async () => {
                     const contractId = addendumContractIdInput.value;
-                    // Set isInRenewal to true when opening the checklist modal
                     try {
                         await db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId).update({
-                            isInRenewal: true
+                            isInRenewal: true,
+                            lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza data de atividade
                         });
                         console.log(`Contrato ${contractId} marcado como 'em renovação'.`);
                     } catch (error) {
                         console.error("Erro ao marcar contrato como 'em renovação':", error);
                         showMessageModal('Erro', `Não foi possível marcar o contrato como 'em renovação': ${error.message}`);
-                        return; // Prevent opening modal if update fails
+                        return;
                     }
                     openAditivoRenewalChecklistModal(contractId);
                     closeModal('addendum-modal');
@@ -2766,13 +3011,12 @@
                         if (checklistContractSei) checklistContractSei.textContent = contract.seiNumber;
                         if (checklistContractCompany) checklistContractCompany.textContent = contract.companyName;
 
-                        // Set initial values for renewal form fields
-                        if (renewalDurationAditivoInput) renewalDurationAditivoInput.value = ''; // Clear previous value
-                        if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.value = formatCurrency(contract.contractValue); // Pre-fill with current contract value
+                        if (renewalDurationAditivoInput) renewalDurationAditivoInput.value = '';
+                        if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.value = formatCurrency(contract.contractValue);
 
                         renderChecklistItems(contract.companyName);
                         renderUnitConcordance(contract.participatingUnits || []);
-                        updateFinalRenewButtonState(); // Initial state check
+                        updateFinalRenewButtonState();
 
                         showModal(aditivoRenewalChecklistModal);
                     } else {
@@ -2793,7 +3037,6 @@
                         itemText = `Ofício da Empresa - ${companyName}`;
                     }
                     if (item === "Concordância das unidades") {
-                        // This item will be handled separately in renderUnitConcordance
                         return;
                     }
 
@@ -2806,7 +3049,6 @@
                     checklistItemsContainer.appendChild(div);
                 });
 
-                // Add event listeners for checklist items
                 document.querySelectorAll('.checklist-item').forEach(checkbox => {
                     checkbox.addEventListener('change', updateFinalRenewButtonState);
                 });
@@ -2844,7 +3086,7 @@
                 const allChecklistItems = document.querySelectorAll('.checklist-item');
                 const allUnitConcordanceRadios = document.querySelectorAll('.unit-concordance-radio');
                 const renewalDurationInput = document.getElementById('renewal-duration-aditivo');
-                const renewalUpdatedValueInput = document.getElementById('renewal-updated-value-aditivo'); // New input
+                const renewalUpdatedValueInput = document.getElementById('renewal-updated-value-aditivo');
                 const renewButton = document.getElementById('final-renew-button');
 
                 let allChecklistChecked = true;
@@ -2874,14 +3116,14 @@
                         renewButton.disabled = false;
                     }
                     if (renewalDurationInput) renewalDurationInput.disabled = false;
-                    if (renewalUpdatedValueInput) renewalUpdatedValueInput.disabled = false; // Enable value input
+                    if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.disabled = false;
                 } else {
                     if (renewButton) {
                         renewButton.classList.add('opacity-50', 'cursor-not-allowed');
                         renewButton.disabled = true;
                     }
                     if (renewalDurationInput) renewalDurationInput.disabled = true;
-                    if (renewalUpdatedValueInput) renewalUpdatedValueInput.disabled = true; // Disable value input
+                    if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.disabled = true;
                 }
             }
 
@@ -2890,7 +3132,7 @@
                     e.preventDefault();
                     const contractId = checklistContractIdInput.value;
                     const renewalDuration = parseInt(renewalDurationAditivoInput.value);
-                    const updatedValue = parseCurrency(renewalUpdatedValueAditivoInput.value); // Get new value
+                    const updatedValue = parseCurrency(renewalUpdatedValueAditivoInput.value);
 
                     if (isNaN(renewalDuration) || renewalDuration <= 0) {
                         showMessageModal('Erro', 'Por favor, insira um prazo de renovação válido em meses.');
@@ -2915,9 +3157,10 @@
                             await contractRef.update({
                                 currentValidityDate: newValidityDate,
                                 renewalNumber: newRenewalNumber,
-                                contractValue: updatedValue, // Update contract value
-                                isInRenewal: false, // Set back to false
+                                contractValue: updatedValue,
+                                isInRenewal: false,
                                 contractHistory: firebase.firestore.FieldValue.arrayUnion(historyEntry),
+                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Atualiza data de atividade
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             });
                             showMessageModal('Sucesso', 'Contrato renovado via Aditivo com sucesso!');
@@ -2931,7 +3174,7 @@
                     }
                 });
             }
-        }); // End DOMContentLoaded
+        });
     </script>
 </body>
 </html>
