@@ -205,7 +205,7 @@
                 <div class="flex items-center space-x-4">
                     <div id="contract-stats" class="text-sm text-purple-100 flex flex-col items-end">
                         <span>Ativos: <span id="active-contracts-count">0</span></span>
-                        <span class="text-red-300">Vencendo (30 dias): <span id="expiring-contracts-count">0</span></span>
+                        <span class="text-red-300 cursor-pointer" id="expiring-contracts-count" title="Clique para ver contratos vencendo">Vencendo (180 dias): <span id="expiring-contracts-count-value">0</span></span>
                         <span class="text-gray-300">Vencidos: <span id="overdue-contracts-count">0</span></span>
                     </div>
                     <span id="user-id-display" class="text-sm text-purple-100 hidden"></span>
@@ -234,8 +234,10 @@
 
                 <!-- contracts-list agora conterá os grupos de SEI para arrastar e soltar -->
                 <div id="contracts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto flex-grow">
-                    <p id="no-contracts-message" class="text-center text-gray-500 col-span-full hidden">Nenhum contrato encontrado.</p>
+                    <!-- Contract cards will be rendered here -->
                 </div>
+                <!-- Moved no-contracts-message outside contracts-list -->
+                <p id="no-contracts-message" class="text-center text-gray-500 col-span-full hidden mt-4">Nenhum contrato encontrado.</p>
             </div>
 
             <div id="reminders-tab" class="tab-content hidden flex-grow flex flex-col">
@@ -336,7 +338,7 @@
                 </div>
                 <div>
                     <label for="contract-value" class="block text-sm font-medium text-gray-700">Valor Atualizado do Contrato</label>
-                    <input type="text" id="contract-value" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="R$ 0.000,00">
+                    <input type="text" id="contract-value" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="0,00">
                 </div>
 
                 <div class="col-span-full">
@@ -382,7 +384,7 @@
                 </div>
                 <div>
                     <label for="renew-updated-value" class="block text-sm font-medium text-gray-700">Valor Atualizado (R$)</label>
-                    <input type="text" id="renew-updated-value" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="R$ 0.000,00">
+                    <input type="text" id="renew-updated-value" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="0,00">
                 </div>
                 <div class="col-span-full">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Unidades para Renovação</label>
@@ -703,7 +705,7 @@
                 </div>
                 <div class="mt-4">
                     <label for="renewal-updated-value-aditivo" class="block text-sm font-medium text-gray-700">Valor Atualizado do Contrato (R$)</label>
-                    <input type="text" id="renewal-updated-value-aditivo" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="R$ 0.000,00" disabled>
+                    <input type="text" id="renewal-updated-value-aditivo" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="0,00" disabled>
                 </div>
 
                 <div class="flex justify-end space-x-3 mt-4">
@@ -813,25 +815,40 @@
             showModal(messageModal);
         }
 
+        /**
+         * Cria um objeto Date que representa a meia-noite do dia no fuso horário local
+         * a partir de uma string "AAAA-MM-DD".
+         * @param {string} dateString - A string da data no formato "AAAA-MM-DD".
+         * @returns {Date} Um objeto Date local.
+         */
+        function createLocalDate(dateString) {
+            const parts = dateString.split('-');
+            // Mês é 0-indexado no construtor Date (janeiro é 0, fevereiro é 1, etc.)
+            const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            date.setHours(0, 0, 0, 0); // Garante que seja meia-noite local
+            return date;
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             // Your Firebase project configuration
-            const firebaseConfig = {
-                apiKey: "AIzaSyDTxRQdMy4QugmySVeSErf5Kqihn_4OhWw",
-                authDomain: "gcc-contratos.firebaseapp.com",
-                projectId: "gcc-contratos",
-                storageBucket: "gcc-contratos.firebasestorage.app",
-                messagingSenderId: "405415511927",
-                appId: "1:405415511927:web:4612190119302726820372",
-                measurementId: "G-T1T4N9WD5T"
+            // Use __firebase_config global variable for Firebase configuration
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "YOUR_API_KEY", // Placeholder if not in Canvas environment
+                authDomain: "YOUR_AUTH_DOMAIN",
+                projectId: "YOUR_PROJECT_ID",
+                storageBucket: "YOUR_STORAGE_BUCKET",
+                messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+                appId: "YOUR_APP_ID",
+                measurementId: "YOUR_MEASUREMENT_ID"
             };
 
             // Initialize Firebase
-            firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth();
-            const db = firebase.firestore();
+            const app = firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth(app);
+            const db = firebase.firestore(app);
 
             // Constants
-            const APP_ID = firebaseConfig.projectId; // Use project ID as app ID for collections
+            const APP_ID = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId; // Use __app_id or project ID as app ID for collections
             const PUBLIC_COLLECTION_PATH = `artifacts/${APP_ID}/public/data`;
             const USERS_COLLECTION_PATH = `artifacts/${APP_ID}/users`;
 
@@ -850,7 +867,8 @@
 
             // Elementos para o contador de contratos
             const activeContractsCountSpan = document.getElementById('active-contracts-count');
-            const expiringContractsCountSpan = document.getElementById('expiring-contracts-count');
+            const expiringContractsCountSpan = document.getElementById('expiring-contracts-count'); // The clickable span
+            const expiringContractsCountValueSpan = document.getElementById('expiring-contracts-count-value'); // The span displaying the value
             const overdueContractsCountSpan = document.getElementById('overdue-contracts-count');
 
             const addContractButton = document.getElementById('add-contract-button');
@@ -965,7 +983,7 @@
 
             // Updated list of units
             const allUnits = [
-                'CHB', 'CHPB', 'CSPD', 'CSSFA', 'CSSFE', 'CSSI', 'HAC', 'HEM', 'HIJPII', 'HJXXIII', 'HMAL', 'HRAD', 'HRBJA', 'HRJP', 'IRS', 'MOV'
+                'CHB', 'CHPB', 'CSPD', 'CSSFA', 'CSSFE', 'CSSI', 'HAC', 'HEM', 'HIJPII', 'HJXXIII', 'HMAL', 'HRAD', 'HRBJA', 'HRJP', 'IRS', 'MOV', 'HJK'
             ].sort(); // Sort alphabetically
 
             // Checklist items for Aditivo renewal
@@ -1023,9 +1041,9 @@
 
             // Format currency
             function formatCurrency(value) {
-                if (!value) return '';
-                // Remove R$, spaces, and replace comma with dot for parsing
-                const numericValue = parseFloat(value.toString().replace('R$', '').replace(/\./g, '').replace(',', '.'));
+                if (value === null || value === undefined || isNaN(value)) return '';
+                // Ensure value is a number before formatting
+                const numericValue = parseFloat(value);
                 if (isNaN(numericValue)) return '';
                 return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numericValue);
             }
@@ -1034,14 +1052,21 @@
             function parseCurrency(value) {
                 if (!value) return 0;
                 // Remove R$, espaços, pontos de milhar e substitui vírgula por ponto decimal
-                return parseFloat(value.replace(/[R$\s.]/g, '').replace(',', '.'));
+                // Handles both "R$ 1.234,56" and "1234,56"
+                let cleanedValue = value.replace(/[R$\s.]/g, '').replace(',', '.');
+                const parsed = parseFloat(cleanedValue);
+                return isNaN(parsed) ? 0 : parsed;
             }
 
             // Date utility to add months
-            function addMonths(date, months) {
-                const d = new Date(date);
+            function addMonths(dateString, months) {
+                // Parse the input date string as a local date
+                const d = createLocalDate(dateString);
+
                 d.setMonth(d.getMonth() + months);
-                return d.toISOString().split('T')[0]; // Return in 'YYYY-MM-DD' format
+
+                // Retorna como uma string YYYY-MM-DD
+                return d.toISOString().split('T')[0];
             }
 
             // --- UI State Management ---
@@ -1138,44 +1163,60 @@
             }
 
             // --- Authentication ---
-            // Este listener é chamado sempre que o estado de autenticação do usuário muda (login, logout)
+            // Initial sign-in with custom token or anonymously
+            async function initialSignIn() {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await auth.signInAnonymously();
+                        console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Initial sign-in error:", error);
+                    showMessageModal('Erro de Autenticação', `Não foi possível autenticar: ${error.message}.`);
+                }
+            }
+
+            // This listener is called whenever the user's authentication state changes (login, logout)
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
-                    // Usuário logado
+                    // User logged in
                     currentUserId = user.uid;
                     if (userIdDisplay) userIdDisplay.textContent = `UID: ${currentUserId}`;
-                    console.log('onAuthStateChanged: Usuário logado:', user.uid);
-                    console.log('onAuthStateChanged: App ID sendo usado para coleções Firestore:', APP_ID);
+                    console.log('onAuthStateChanged: User logged in:', user.uid);
+                    console.log('onAuthStateChanged: App ID being used for Firestore collections:', APP_ID);
 
-                    // Tenta obter o perfil do usuário para verificar o status de administrador
+                    // Try to get user profile to check admin status
                     const userProfileRef = db.collection(USERS_COLLECTION_PATH).doc(currentUserId).collection('profile').doc('data');
                     try {
                         const doc = await userProfileRef.get();
                         if (doc.exists && doc.data().isAdmin === true) {
                             isAdmin = true;
-                            console.log('onAuthStateChanged: Usuário é administrador.');
+                            console.log('onAuthStateChanged: User is admin.');
                         } else {
                             isAdmin = false;
-                            console.log('onAuthStateChanged: Usuário NÃO é administrador.');
+                            console.log('onAuthStateChanged: User is NOT admin.');
                         }
                     } catch (error) {
-                        console.error("Erro ao carregar perfil do usuário:", error);
-                        isAdmin = false; // Define como false se o perfil não puder ser lido ou não existir
+                        console.error("Error loading user profile:", error);
+                        isAdmin = false; // Set to false if profile cannot be read or doesn't exist
                     }
 
-                    showPage('main-page'); // Exibe a página principal
-                    setActiveTab('contracts'); // Define a aba padrão
-                    loadContracts(); // Carrega contratos
-                    loadReminders(); // Carrega lembretes
+                    showPage('main-page'); // Show main page
+                    setActiveTab('contracts'); // Set default tab
+                    loadContracts(); // Load contracts
+                    loadReminders(); // Load reminders
                     loadInRenewalContracts(); // Load in-renewal contracts
-                    loadTerminatedContracts(); // Carrega contratos encerrados
-                    setAdminPermissions(isAdmin); // Aplica as permissões com base no status de administrador
+                    loadTerminatedContracts(); // Load terminated contracts
+                    setAdminPermissions(isAdmin); // Apply permissions based on admin status
 
                 } else {
-                    // Nenhum usuário logado
-                    console.log('onAuthStateChanged: Nenhum usuário logado. Exibindo página de login.');
-                    showPage('login-page'); // Garante que a página de login seja sempre exibida
-                    // Limpa quaisquer listeners de dados se o usuário deslogou
+                    // No user logged in
+                    console.log('onAuthStateChanged: No user logged in. Showing login page.');
+                    showPage('login-page'); // Ensure login page is always displayed
+                    // Clear any data listeners if the user logged out
                     if (unsubscribeContracts) unsubscribeContracts();
                     if (unsubscribeReminders) unsubscribeReminders();
                     if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts();
@@ -1195,8 +1236,11 @@
                     currentUserId = null;
                     isAdmin = false;
                 }
-                console.log('onAuthStateChanged: Autenticação pronta. Carregando dados...');
+                console.log('onAuthStateChanged: Authentication ready. Loading data...');
             });
+
+            // Call initial sign-in when the script loads
+            initialSignIn();
 
             showRegisterLink.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -1207,7 +1251,7 @@
             showLoginLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 showPage('login-page');
-                if (loginMessage) loginMessage.textContent = '';
+                if (loginMessage) loginMessage.textContent = ''; // Clear login message when switching back to login
             });
 
             loginForm.addEventListener('submit', async (e) => {
@@ -1218,16 +1262,16 @@
                 try {
                     await auth.signInWithEmailAndPassword(email, password);
                     if (loginMessage) loginMessage.textContent = '';
-                    // onAuthStateChanged irá lidar com a exibição da página
+                    // onAuthStateChanged will handle page display
                 } catch (error) {
-                    console.error("Erro de login:", error);
+                    console.error("Login error:", error);
                     let errorMessage = "Erro ao fazer login. Verifique seu e-mail e senha.";
-                    if (error.code === 'auth/user-not-found') {
-                        errorMessage = "Usuário não encontrado. Verifique o e-mail ou registre-se.";
-                    } else if (error.code === 'auth/wrong-password') {
-                        errorMessage = "Senha incorreta.";
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-login-credentials') {
+                        errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha ou registre-se.";
                     } else if (error.code === 'auth/invalid-email') {
                         errorMessage = "E-mail inválido.";
+                    } else if (error.code === 'auth/network-request-failed') {
+                        errorMessage = "Erro de rede. Verifique sua conexão com a internet.";
                     }
                     if (loginMessage) loginMessage.textContent = errorMessage;
                 }
@@ -1252,14 +1296,14 @@
                     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                     const newUser = userCredential.user;
 
-                    // Salva os dados do perfil do usuário no Firestore
+                    // Save user profile data to Firestore
                     await db.collection(USERS_COLLECTION_PATH).doc(newUser.uid).collection('profile').doc('data').set({
                         name: name,
                         address: address,
                         cpf: cpf,
                         phone: phone,
                         email: email,
-                        isAdmin: false // Novos usuários não são administradores por padrão
+                        isAdmin: false // New users are not admins by default
                     });
 
                     if (registerMessage) {
@@ -1268,14 +1312,16 @@
                         registerMessage.classList.add('text-green-600');
                     }
                     registerForm.reset();
-                    setTimeout(() => showPage('login-page'), 2000); // Redireciona para o login após 2 segundos
+                    setTimeout(() => showPage('login-page'), 2000); // Redirect to login after 2 seconds
                 } catch (error) {
-                    console.error("Erro de registro:", error);
+                    console.error("Registration error:", error);
                     let errorMessage = "Erro ao registrar. Tente novamente.";
                     if (error.code === 'auth/email-already-in-use') {
                         errorMessage = "Este e-mail já está em uso.";
                     } else if (error.code === 'auth/weak-password') {
                         errorMessage = "A senha deve ter pelo menos 6 caracteres.";
+                    } else if (error.code === 'auth/network-request-failed') {
+                        errorMessage = "Erro de rede. Verifique sua conexão com a internet.";
                     }
                     if (registerMessage) {
                         registerMessage.textContent = errorMessage;
@@ -1288,18 +1334,21 @@
             logoutButton.addEventListener('click', async () => {
                 try {
                     await auth.signOut();
-                    console.log("Usuário deslogado com sucesso.");
-                    // onAuthStateChanged irá lidar com a exibição da página e a limpeza dos listeners
+                    console.log("User logged out successfully.");
+                    // onAuthStateChanged will handle page display and listener cleanup
                 } catch (error) {
-                    console.error("Erro ao fazer logout:", error);
+                    console.error("Error logging out:", error);
                     showMessageModal('Erro', 'Não foi possível fazer logout. Tente novamente.');
                 }
             });
 
             // --- Contract Management ---
-            async function loadContracts() {
+            // Current filter state for contracts tab
+            let currentContractsFilter = null;
+
+            async function loadContracts(filterStatus = null) {
                 if (!currentUserId) {
-                    console.log("loadContracts: Usuário não autenticado, não carregando contratos.");
+                    console.log("loadContracts: User not authenticated, not loading contracts.");
                     const contractsList = document.getElementById('contracts-list');
                     const noContractsMessage = document.getElementById('no-contracts-message');
                     if (contractsList) contractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos.</p>';
@@ -1307,30 +1356,74 @@
                     return;
                 }
                 if (unsubscribeContracts) unsubscribeContracts();
-                console.log('loadContracts: Tentando configurar listener para contratos. Coleção:', `${PUBLIC_COLLECTION_PATH}/contracts`);
+
+                currentContractsFilter = filterStatus; // Set the current filter
+
+                console.log('loadContracts: Attempting to set up listener for contracts. Collection:', `${PUBLIC_COLLECTION_PATH}/contracts`);
                 unsubscribeContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`)
                     .where('isInRenewal', '==', false)
-                    .onSnapshot(async snapshot => { // Adicionado 'async' aqui
-                        const contractsList = document.getElementById('contracts-list'); // Fetch locally
+                    .onSnapshot(async snapshot => {
+                        const contractsList = document.getElementById('contracts-list');
                         if (contractsList) contractsList.innerHTML = '';
-                        const contracts = [];
+                        let allContracts = []; // Store all contracts from snapshot for counting
                         snapshot.forEach(doc => {
                             const contract = { id: doc.id, ...doc.data() };
-                            contracts.push(contract);
+                            allContracts.push(contract);
                         });
-                        // Obtém a ordem salva dos grupos SEI antes de exibir
+
+                        // --- Update Counters (always based on all non-renewal contracts) ---
+                        let activeCount = 0;
+                        let expiringCount = 0;
+                        let overdueCount = 0;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        allContracts.forEach(contract => {
+                            const validityDate = createLocalDate(contract.currentValidityDate);
+                            validityDate.setHours(0, 0, 0, 0);
+                            const diffTime = validityDate.getTime() - today.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                            if (diffDays >= 0) {
+                                activeCount++;
+                                if (diffDays <= 180) {
+                                    expiringCount++;
+                                }
+                            } else {
+                                overdueCount++;
+                            }
+                        });
+
+                        if (activeContractsCountSpan) activeContractsCountSpan.textContent = activeCount;
+                        if (expiringContractsCountValueSpan) expiringContractsCountValueSpan.textContent = expiringCount; // Update the value span
+                        if (overdueContractsCountSpan) overdueContractsCountSpan.textContent = overdueCount;
+                        // --- End Update Counters ---
+
+                        let contractsToDisplay = [...allContracts]; // Start with all contracts
+
+                        // Apply filter if specified
+                        if (currentContractsFilter === 'expiring') {
+                            contractsToDisplay = contractsToDisplay.filter(contract => {
+                                const validityDate = createLocalDate(contract.currentValidityDate);
+                                validityDate.setHours(0, 0, 0, 0);
+                                const diffTime = validityDate.getTime() - today.getTime();
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                return diffDays <= 180 && diffDays >= 0;
+                            });
+                        }
+
                         const savedSeiOrder = await getSeiGroupOrder();
-                        displayContracts(contracts, savedSeiOrder);
+                        displayContracts(contractsToDisplay, savedSeiOrder, today); // Pass 'today' to displayContracts
                         checkEmptyState('contracts');
                     }, error => {
-                        console.error("loadContracts: Erro ao carregar contratos em tempo real:", error);
+                        console.error("loadContracts: Error loading contracts in real-time:", error);
                         showMessageModal('Erro', `Erro ao carregar contratos: ${error.message}. Verifique as permissões do Firestore.`);
                     });
             }
 
             async function loadInRenewalContracts() {
                 if (!currentUserId) {
-                    console.log("loadInRenewalContracts: Usuário não autenticado, não carregando contratos em renovação.");
+                    console.log("loadInRenewalContracts: User not authenticated, not loading in-renewal contracts.");
                     const inRenewalContractsList = document.getElementById('in-renewal-contracts-list');
                     const noInRenewalContractsMessage = document.getElementById('no-in-renewal-contracts-message');
                     if (inRenewalContractsList) inRenewalContractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos em renovação.</p>';
@@ -1338,7 +1431,7 @@
                     return;
                 }
                 if (unsubscribeInRenewalContracts) unsubscribeInRenewalContracts();
-                console.log('loadInRenewalContracts: Tentando configurar listener para contratos em renovação. Coleção:', `${PUBLIC_COLLECTION_PATH}/contracts`);
+                console.log('loadInRenewalContracts: Attempting to set up listener for in-renewal contracts. Collection:', `${PUBLIC_COLLECTION_PATH}/contracts`);
                 unsubscribeInRenewalContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`)
                     .where('isInRenewal', '==', true)
                     .onSnapshot(snapshot => {
@@ -1349,18 +1442,18 @@
                             const contract = { id: doc.id, ...doc.data() };
                             contracts.push(contract);
                         });
-                        contracts.sort((a, b) => new Date(a.currentValidityDate) - new Date(b.currentValidityDate));
+                        contracts.sort((a, b) => createLocalDate(a.currentValidityDate) - createLocalDate(b.currentValidityDate));
                         displayInRenewalContracts(contracts);
                         checkEmptyState('in-renewal'); // Pass 'in-renewal' as tabName
                     }, error => {
-                        console.error("loadInRenewalContracts: Erro ao carregar contratos em renovação em tempo real:", error);
+                        console.error("loadInRenewalContracts: Error loading in-renewal contracts in real-time:", error);
                         showMessageModal('Erro', `Erro ao carregar contratos em renovação: ${error.message}. Verifique as permissões do Firestore.`);
                     });
             }
 
             async function loadTerminatedContracts() {
                 if (!currentUserId) {
-                    console.log("loadTerminatedContracts: Usuário não autenticado, não carregando contratos encerrados.");
+                    console.log("loadTerminatedContracts: User not authenticated, not loading terminated contracts.");
                     const terminatedContractsList = document.getElementById('terminated-contracts-list');
                     const noTerminatedContractsMessage = document.getElementById('no-terminated-contracts-message');
                     if (terminatedContractsList) terminatedContractsList.innerHTML = '<p class="text-center text-gray-500 col-span-full">Faça login para visualizar os contratos encerrados.</p>';
@@ -1368,10 +1461,11 @@
                     return;
                 }
                 if (unsubscribeTerminatedContracts) unsubscribeTerminatedContracts();
-                console.log('loadTerminatedContracts: Tentando configurar listener para contratos encerrados. Coleção:', `${PUBLIC_COLLECTION_PATH}/terminated_contracts`);
+                console.log('loadTerminatedContracts: Attempting to set up listener for terminated contracts. Collection:', `${PUBLIC_COLLECTION_PATH}/terminated_contracts`);
                 unsubscribeTerminatedContracts = db.collection(`${PUBLIC_COLLECTION_PATH}/terminated_contracts`)
                     .orderBy('terminationDate', 'desc')
                     .onSnapshot(snapshot => {
+                        console.log(`loadTerminatedContracts: onSnapshot received ${snapshot.docs.length} documents for terminated contracts.`); // Added log
                         const terminatedContractsList = document.getElementById('terminated-contracts-list'); // Fetch locally
                         if (terminatedContractsList) terminatedContractsList.innerHTML = '';
                         const terminatedContracts = [];
@@ -1382,7 +1476,7 @@
                         displayTerminatedContracts(terminatedContracts);
                         checkEmptyState('terminated-contracts');
                     }, error => {
-                        console.error("loadTerminatedContracts: Erro ao carregar contratos encerrados em tempo real:", error);
+                        console.error("loadTerminatedContracts: Error loading terminated contracts in real-time:", error);
                         showMessageModal('Erro', `Erro ao carregar contratos encerrados: ${error.message}. Verifique as permissões do Firestore.`);
                     });
             }
@@ -1391,46 +1485,18 @@
              * Exibe os contratos na interface, agrupando por SEI, aplicando cores e ordenando.
              * @param {Array<Object>} contractsToDisplay - Lista de contratos a serem exibidos.
              * @param {Array<string>} savedSeiOrder - Ordem salva dos grupos SEI pelo usuário.
+             * @param {Date} today - Objeto Date representando o dia atual.
              */
-            function displayContracts(contractsToDisplay, savedSeiOrder = []) {
+            function displayContracts(contractsToDisplay, savedSeiOrder = [], today) {
                 const contractsList = document.getElementById('contracts-list');
                 const noContractsMessage = document.getElementById('no-contracts-message');
 
                 if (!contractsList || !noContractsMessage) {
-                    console.warn("displayContracts: Elementos 'contractsList' ou 'noContractsMessage' não encontrados.");
+                    console.warn("displayContracts: Elements 'contractsList' or 'noContractsMessage' not found.");
                     return;
                 }
 
-                contractsList.innerHTML = ''; // Limpa a lista antes de renderizar
-
-                // --- Atualiza Contadores ---
-                let activeCount = 0;
-                let expiringCount = 0;
-                let overdueCount = 0;
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                contractsToDisplay.forEach(contract => {
-                    const validityDate = new Date(contract.currentValidityDate);
-                    validityDate.setHours(0, 0, 0, 0);
-                    const diffTime = validityDate.getTime() - today.getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                    if (diffDays >= 0) {
-                        activeCount++;
-                        if (diffDays <= 30) {
-                            expiringCount++;
-                        }
-                    } else {
-                        overdueCount++;
-                    }
-                });
-
-                if (activeContractsCountSpan) activeContractsCountSpan.textContent = activeCount;
-                if (expiringContractsCountSpan) expiringContractsCountSpan.textContent = expiringCount;
-                if (overdueContractsCountSpan) overdueContractsCountSpan.textContent = overdueCount;
-                // --- Fim da Atualização de Contadores ---
-
+                contractsList.innerHTML = ''; // Clear list before rendering
 
                 if (contractsToDisplay.length === 0) {
                     noContractsMessage.classList.remove('hidden');
@@ -1439,9 +1505,9 @@
                     noContractsMessage.classList.add('hidden');
                 }
 
-                // 1. Agrupa contratos por seiNumber (raiz)
+                // 1. Group contracts by seiNumber (root)
                 const groupedContracts = contractsToDisplay.reduce((acc, contract) => {
-                    const seiRoot = contract.seiNumber.split('-')[0]; // Pega a parte principal do SEI
+                    const seiRoot = contract.seiNumber.split('-')[0]; // Get the main part of SEI
                     if (!acc[seiRoot]) {
                         acc[seiRoot] = [];
                     }
@@ -1449,25 +1515,25 @@
                     return acc;
                 }, {});
 
-                // 2. Atribui cores e prepara os grupos
+                // 2. Assign colors and prepare groups
                 const seiGroups = Object.keys(groupedContracts).map(seiRoot => {
                     const contractsInGroup = groupedContracts[seiRoot];
-                    const groupColor = getSeiColor(seiRoot); // Obtém ou atribui a cor do grupo
+                    const groupColor = getSeiColor(seiRoot); // Get or assign group color
 
-                    // Ordena contratos dentro do grupo por contractNumber para consistência (ex: 12345-01 antes de 12345-02)
+                    // Sort contracts within the group by contractNumber for consistency (e.g., 12345-01 before 12345-02)
                     contractsInGroup.sort((a, b) => {
                         const numA = parseInt(a.contractNumber.split('-')[1] || '0');
                         const numB = parseInt(b.contractNumber.split('-')[1] || '0');
                         return numA - numB;
                     });
 
-                    // Determina a data da última atividade para o grupo (para ordenação)
+                    // Determine the last activity date for the group (for sorting)
                     const lastActivityDate = contractsInGroup.reduce((latestDate, contract) => {
                         const contractLastActivity = contract.lastActivityDate ? new Date(contract.lastActivityDate.toDate()) : (contract.createdAt ? new Date(contract.createdAt.toDate()) : new Date(0));
                         return contractLastActivity > latestDate ? contractLastActivity : latestDate;
-                    }, new Date(0)); // Inicializa com uma data bem antiga
+                    }, new Date(0)); // Initialize with a very old date
 
-                    // Verifica se algum contrato no grupo está marcado como estrela
+                    // Check if any contract in the group is starred
                     const isGroupStarred = contractsInGroup.some(contract => contract.isStarred);
 
                     return {
@@ -1479,33 +1545,33 @@
                     };
                 });
 
-                // 3. Ordena os grupos: favoritados primeiro, depois pela ordem salva, depois por última atividade (desc)
+                // 3. Sort groups: starred first, then by saved order, then by last activity (desc)
                 seiGroups.sort((a, b) => {
-                    // Favoritados vêm primeiro
+                    // Starred come first
                     if (a.isStarred && !b.isStarred) return -1;
                     if (!a.isStarred && b.isStarred) return 1;
 
-                    // Em seguida, usa a ordem salva pelo usuário
+                    // Then, use the user's saved order
                     const indexA = savedSeiOrder.indexOf(a.seiRoot);
-                    const indexB = savedSeiOrder.indexOf(b.seiRoot);
+                    const indexB = savedSeaiOrder.indexOf(b.seiRoot);
 
                     if (indexA !== -1 && indexB !== -1) {
-                        return indexA - indexB; // Ambos estão na ordem salva, ordena por índice
+                        return indexA - indexB; // Both are in saved order, sort by index
                     }
-                    if (indexA !== -1) return -1; // A está na ordem salva, B não, então A vem primeiro
-                    if (indexB !== -1) return 1;  // B está na ordem salva, A não, então B vem primeiro
+                    if (indexA !== -1) return -1; // A is in saved order, B is not, so A comes first
+                    if (indexB !== -1) return 1;  // B is in saved order, A is not, so B comes first
 
-                    // Se nenhum estiver na ordem salva (ou se ambos são favoritados/não favoritados), ordena por última atividade
+                    // If neither is in saved order (or if both are starred/unstarred), sort by last activity
                     return b.lastActivityDate.getTime() - a.lastActivityDate.getTime();
                 });
 
 
-                // 4. Renderiza os grupos e seus contratos
+                // 4. Render groups and their contracts
                 seiGroups.forEach(group => {
                     const groupContainer = document.createElement('div');
                     groupContainer.className = `sei-group-container border-l-8 rounded-lg shadow-md p-4 bg-white`;
                     groupContainer.style.borderColor = group.color;
-                    groupContainer.setAttribute('data-sei-root', group.seiRoot); // Para Sortable.js
+                    groupContainer.setAttribute('data-sei-root', group.seiRoot); // For Sortable.js
 
                     const groupHeader = document.createElement('div');
                     groupHeader.className = `flex justify-between items-center mb-4 pb-2 border-b border-gray-200`;
@@ -1516,7 +1582,7 @@
                     groupContainer.appendChild(groupHeader);
 
                     group.contracts.forEach(contract => {
-                        const validityDate = new Date(contract.currentValidityDate);
+                        const validityDate = createLocalDate(contract.currentValidityDate); // Use createLocalDate
                         validityDate.setHours(0, 0, 0, 0);
 
                         const diffTime = validityDate.getTime() - today.getTime();
@@ -1526,20 +1592,12 @@
                         let statusText = '';
                         let validityHighlightClass = '';
 
-                        if (diffDays <= 30 && diffDays >= 0) {
+                        // Updated expiring threshold from 30 to 180 days
+                        if (diffDays <= 180 && diffDays >= 0) { 
                             statusClass = 'bg-red-500 text-white flashing';
                             statusText = `Vence em ${diffDays} dias!`;
                             validityHighlightClass = 'text-red-600 font-bold flashing';
-                        } else if (diffDays > 30 && diffDays <= 90) {
-                            statusClass = 'bg-yellow-500 text-gray-900';
-                            statusText = `Vence em ${diffDays} dias`;
-                            validityHighlightClass = 'text-yellow-600 font-bold';
-                        } else if (diffDays <= 180 && diffDays > 90) {
-                            statusClass = 'bg-yellow-500 text-gray-900';
-                            statusText = `Vence em ${diffDays} dias`;
-                            validityHighlightClass = 'text-orange-600 font-bold flashing';
-                        }
-                        else if (diffDays < 0) {
+                        } else if (diffDays < 0) {
                             statusClass = 'bg-gray-400 text-white';
                             statusText = `Vencido há ${Math.abs(diffDays)} dias`;
                             validityHighlightClass = 'text-gray-600 font-bold';
@@ -1549,9 +1607,18 @@
                             validityHighlightClass = 'text-green-600 font-bold';
                         }
 
+                        // Ensure participatingUnits is an array and join it for display
+                        // Debugging: Log the actual value of participatingUnits
+                        console.log(`Contract ID: ${contract.id}, Participating Units (raw):`, contract.participatingUnits);
+                        const unitsDisplay = Array.isArray(contract.participatingUnits) && contract.participatingUnits.length > 0
+                            ? contract.participatingUnits.join(', ')
+                            : 'N/A';
+                        console.log(`Units Display String: ${unitsDisplay}`);
+
+
                         const contractCard = document.createElement('div');
-                        contractCard.className = `contract-card-in-group bg-white rounded-lg shadow-sm p-6 flex flex-col justify-between relative`; // Adicionado relative para posicionamento da estrela
-                        contractCard.setAttribute('data-id', contract.id); // Necessário para Sortable.js se for reordenar cards individuais
+                        contractCard.className = `contract-card-in-group bg-white rounded-lg shadow-sm p-6 flex flex-col justify-between relative`; // Added relative for star positioning
+                        contractCard.setAttribute('data-id', contract.id); // Necessary for Sortable.js if individual cards are to be reordered
                         contractCard.innerHTML = `
                             <div class="space-y-3">
                                 <div class="flex justify-between items-center mb-2">
@@ -1561,14 +1628,14 @@
                                 <p class="text-gray-600 text-sm"><strong>SEI:</strong> ${contract.seiNumber}</p>
                                 <p class="text-gray-600 text-sm"><strong>Contrato:</strong> ${contract.contractNumber}</p>
                                 <p class="text-gray-600 text-sm"><strong>Objeto:</strong> ${contract.contractObject}</p>
-                                <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> <span class="${validityHighlightClass}">${new Date(contract.currentValidityDate).toLocaleDateString('pt-BR')}</span></p>
+                                <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> <span class="${validityHighlightClass}">${createLocalDate(contract.currentValidityDate).toLocaleDateString('pt-BR')}</span></p>
                                 <p class="text-gray-600 text-sm"><strong>Renovação:</strong> ${contract.renewalNumber}ª</p>
                                 <p class="text-gray-600 text-sm"><strong>Valor:</strong> ${formatCurrency(contract.contractValue)}</p>
                                 <p class="text-gray-600 text-sm"><strong>Lei:</strong> ${contract.lawType === '8666' ? '8.666/93' : '14.133/21'}</p>
-                                <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${contract.participatingUnits ? contract.participatingUnits.join(', ') : 'N/A'}</p>
+                                <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${unitsDisplay}</p>
                                 ${contract.observations ? `<p class="text-gray-600 text-sm"><strong>Obs:</strong> ${contract.observations}</p>` : ''}
                             </div>
-                            <!-- Ícone de estrela para favoritar -->
+                            <!-- Star icon to favorite -->
                             <div class="absolute top-4 right-4">
                                 <i class="fas fa-star text-yellow-400 cursor-pointer star-icon ${contract.isStarred ? '' : 'hidden'}" data-id="${contract.id}" data-starred="true"></i>
                                 <i class="far fa-star text-gray-400 cursor-pointer star-icon ${contract.isStarred ? 'hidden' : ''}" data-id="${contract.id}" data-starred="false"></i>
@@ -1593,7 +1660,7 @@
                     contractsList.appendChild(groupContainer);
                 });
 
-                // Adiciona listeners para os botões de ação e estrelas
+                // Add listeners for action buttons and stars
                 document.querySelectorAll('.edit-button').forEach(button => {
                     button.addEventListener('click', (e) => editContract(e.currentTarget.dataset.id));
                 });
@@ -1615,13 +1682,13 @@
                 });
                 setAdminPermissions(isAdmin);
 
-                // Inicializa Sortable.js para os grupos SEI
+                // Initialize Sortable.js for SEI groups
                 if (Sortable && contractsList) {
                     new Sortable(contractsList, {
                         animation: 150,
-                        handle: '.sei-group-container', // Permite arrastar apenas o contêiner do grupo
+                        handle: '.sei-group-container', // Allow dragging only the group container
                         onEnd: function (evt) {
-                            // Atualiza a ordem dos grupos no Firestore
+                            // Update the order of groups in Firestore
                             const newOrder = Array.from(evt.from.children).map(el => el.dataset.seiRoot);
                             updateSeiGroupOrder(newOrder);
                         }
@@ -1629,30 +1696,30 @@
                 }
             }
 
-            // Função para atualizar o status de estrela (favorito) de um contrato
+            // Function to update the star status (favorite) of a contract
             async function toggleStar(contractId, newStarredStatus) {
                 try {
                     const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
                     await contractRef.update({
                         isStarred: newStarredStatus,
-                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza a data de atividade
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Update activity date
                     });
-                    console.log(`Contrato ${contractId} status de estrela atualizado para ${newStarredStatus}`);
+                    console.log(`Contract ${contractId} star status updated to ${newStarredStatus}`);
                 } catch (error) {
-                    console.error("Erro ao alternar status de estrela:", error);
+                    console.error("Error toggling star status:", error);
                     showMessageModal('Erro', `Não foi possível alterar o status de favorito: ${error.message}`);
                 }
             }
 
-            // Funções para salvar e carregar a ordem dos grupos SEI no Firestore
+            // Functions to save and load the order of SEI groups in Firestore
             async function updateSeiGroupOrder(newOrder) {
                 if (!currentUserId) return;
                 try {
                     const userPrefsRef = db.collection(USERS_COLLECTION_PATH).doc(currentUserId).collection('preferences').doc('contractGroupOrder');
                     await userPrefsRef.set({ order: newOrder }, { merge: true });
-                    console.log("Ordem dos grupos SEI atualizada no Firestore.");
+                    console.log("SEI group order updated in Firestore.");
                 } catch (error) {
-                    console.error("Erro ao salvar ordem dos grupos SEI:", error);
+                    console.error("Error saving SEI group order:", error);
                 }
             }
 
@@ -1666,7 +1733,7 @@
                     }
                     return [];
                 } catch (error) {
-                    console.error("Erro ao carregar ordem dos grupos SEI:", error);
+                    console.error("Error loading SEI group order:", error);
                     return [];
                 }
             }
@@ -1677,7 +1744,7 @@
                 const noInRenewalContractsMessage = document.getElementById('no-in-renewal-contracts-message'); // Fetch locally
 
                 if (!inRenewalContractsList || !noInRenewalContractsMessage) {
-                    console.warn("displayInRenewalContracts: Elementos 'inRenewalContractsList' ou 'noInRenewalContractsMessage' não encontrados.");
+                    console.warn("displayInRenewalContracts: Elements 'inRenewalContractsList' or 'noInRenewalContractsMessage' not found.");
                     return;
                 }
 
@@ -1690,6 +1757,10 @@
                 }
 
                 contractsToDisplay.forEach(contract => {
+                    const unitsDisplay = Array.isArray(contract.participatingUnits) && contract.participatingUnits.length > 0
+                        ? contract.participatingUnits.join(', ')
+                        : 'N/A';
+
                     const contractCard = document.createElement('div');
                     contractCard.className = `bg-yellow-100 rounded-lg shadow-md p-6 flex flex-col justify-between border-2 border-yellow-400`;
                     contractCard.innerHTML = `
@@ -1701,11 +1772,11 @@
                             <p class="text-gray-600 text-sm"><strong>SEI:</strong> ${contract.seiNumber}</p>
                             <p class="text-gray-600 text-sm"><strong>Contrato:</strong> ${contract.contractNumber}</p>
                             <p class="text-gray-600 text-sm"><strong>Objeto:</strong> ${contract.contractObject}</p>
-                            <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> ${new Date(contract.currentValidityDate).toLocaleDateString('pt-BR')}</p>
+                            <p class="text-gray-600 text-sm"><strong>Vigência Atual:</strong> ${createLocalDate(contract.currentValidityDate).toLocaleDateString('pt-BR')}</p>
                             <p class="text-gray-600 text-sm"><strong>Renovação:</strong> ${contract.renewalNumber}ª</p>
                             <p class="text-gray-600 text-sm"><strong>Valor:</strong> ${formatCurrency(contract.contractValue)}</p>
                             <p class="text-gray-600 text-sm"><strong>Lei:</strong> ${contract.lawType === '8666' ? '8.666/93' : '14.133/21'}</p>
-                            <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${contract.participatingUnits ? contract.participatingUnits.join(', ') : 'N/A'}</p>
+                            <p class="text-gray-600 text-sm"><strong>Unidades:</strong> ${unitsDisplay}</p>
                             ${contract.observations ? `<p class="text-gray-600 text-sm"><strong>Obs:</strong> ${contract.observations}</p>` : ''}
                         </div>
                         <div class="mt-4 flex flex-wrap gap-2 justify-end">
@@ -1733,16 +1804,20 @@
                 const noTerminatedContractsMessage = document.getElementById('no-terminated-contracts-message'); // Fetch locally
 
                 if (!terminatedContractsList || !noTerminatedContractsMessage) {
-                    console.warn("displayTerminatedContracts: Elementos 'terminatedContractsList' ou 'noTerminatedContractsMessage' não encontrados.");
+                    console.warn("displayTerminatedContracts: Elements 'terminatedContractsList' or 'noTerminatedContractsMessage' not found.");
                     return;
                 }
 
                 terminatedContractsList.innerHTML = '';
+                console.log(`displayTerminatedContracts: Received ${contractsToDisplay.length} contracts to display.`);
+
                 if (contractsToDisplay.length === 0) {
                     noTerminatedContractsMessage.classList.remove('hidden');
+                    console.log("displayTerminatedContracts: No terminated contracts, showing empty message.");
                     return;
                 } else {
                     noTerminatedContractsMessage.classList.add('hidden');
+                    console.log("displayTerminatedContracts: Contracts found, hiding empty message.");
                 }
 
                 contractsToDisplay.forEach(contract => {
@@ -1756,9 +1831,8 @@
                             </div>
                             <p class="text-gray-600 text-sm"><strong>SEI:</strong> ${contract.seiNumber}</p>
                             <p class="text-gray-600 text-sm"><strong>Contrato:</strong> ${contract.contractNumber}</p>
-                            <p class="text-gray-600 text-sm"><strong>Objeto:</strong> ${contract.contractObject}</p>
-                            <p class="text-gray-600 text-sm"><strong>Vigência Final:</strong> ${new Date(contract.currentValidityDate).toLocaleDateString('pt-BR')}</p>
-                            <p class="text-gray-600 text-sm"><strong>Data de Encerramento:</strong> ${new Date(contract.terminationDate).toLocaleDateString('pt-BR')}</p>
+                            <p class="text-gray-600 text-sm"><strong>Vigência Final:</strong> ${createLocalDate(contract.currentValidityDate).toLocaleDateString('pt-BR')}</p>
+                            <p class="text-gray-600 text-sm"><strong>Data de Encerramento:</strong> ${createLocalDate(contract.terminationDate).toLocaleDateString('pt-BR')}</p>
                             ${contract.terminationNotes ? `<p class="text-gray-600 text-sm"><strong>Motivo:</strong> ${contract.terminationNotes}</p>` : ''}
                             ${contract.contractHistory ? `<p class="text-gray-600 text-sm"><strong>Última Movimentação:</strong> ${contract.contractHistory[contract.contractHistory.length - 1]?.notes || 'N/A'}</p>` : ''}
                         </div>
@@ -1772,7 +1846,10 @@
                         </div>
                     `;
                     terminatedContractsList.appendChild(terminatedCard);
+                    console.log(`displayTerminatedContracts: Appended contract card for ${contract.companyName}. Current children count: ${terminatedContractsList.children.length}`); // Added log
                 });
+
+                console.log(`displayTerminatedContracts: Final children count in terminatedContractsList: ${terminatedContractsList.children.length}`);
 
                 document.querySelectorAll('.view-history-button').forEach(button => {
                     button.addEventListener('click', (e) => viewContractHistory(e.currentTarget.dataset.id, 'terminated_contracts'));
@@ -1801,8 +1878,10 @@
                                 filteredContracts.push({ id: doc.id, ...data });
                             }
                         });
-                        const savedSeiOrder = await getSeiGroupOrder(); // Obtém a ordem salva para manter a consistência na busca
-                        displayContracts(filteredContracts, savedSeiOrder);
+                        const savedSeiOrder = await getSeiGroupOrder(); // Get saved order to maintain consistency in search
+                        const today = new Date(); // Declare today here for search filtering
+                        today.setHours(0, 0, 0, 0);
+                        displayContracts(filteredContracts, savedSeiOrder, today);
                     } else {
                         loadContracts();
                     }
@@ -1824,7 +1903,7 @@
                     }
                     populateUnitButtons(unitsCheckboxContainer, contractSelectedUnitsInput, []);
                     if (maxContractTermInput) maxContractTermInput.value = '';
-                    if (contractValueInput) contractValueInput.value = '';
+                    if (contractValueInput) contractValueInput.value = ''; // Clear value, not format
                     showModal(contractFormModal);
                 });
             }
@@ -1843,9 +1922,11 @@
                     const lawType = lawTypeSelect.value;
                     const currentValidityDate = currentValidityDateInput.value;
                     const renewalNumber = parseInt(renewalNumberSelect.value);
+                    // Parse currency value from input field before saving
                     const contractValue = parseCurrency(contractValueInput.value);
                     const observations = contractObservationsInput.value;
 
+                    // Ensure participatingUnits is correctly parsed from the hidden input
                     const participatingUnits = JSON.parse(document.getElementById('contract-selected-units')?.value || '[]');
 
                     const contractData = {
@@ -1857,14 +1938,13 @@
                         lawType,
                         currentValidityDate,
                         renewalNumber,
-                        contractValue,
-                        participatingUnits,
+                        participatingUnits: Array.isArray(participatingUnits) ? participatingUnits : [], // Ensure it's an array
                         observations,
                         isInRenewal: false,
-                        isStarred: false, // Novo contrato não é favoritado por padrão
+                        isStarred: false, // New contract is not favorited by default
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Nova data de última atividade
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // New last activity date
                         contractHistory: []
                     };
 
@@ -1881,7 +1961,7 @@
                                 changedBy: currentUserId
                             };
                             contractData.contractHistory = firebase.firestore.FieldValue.arrayUnion(historyEntry);
-                            contractData.lastActivityDate = firebase.firestore.FieldValue.serverTimestamp(); // Atualiza data de atividade
+                            contractData.lastActivityDate = firebase.firestore.FieldValue.serverTimestamp(); // Update activity date
 
                             await contractRef.update(contractData);
                             showMessageModal('Sucesso', 'Contrato atualizado com sucesso!');
@@ -1898,7 +1978,7 @@
                         closeModal('contract-form-modal');
                         if (contractForm) contractForm.reset();
                     } catch (error) {
-                        console.error("Erro ao salvar contrato:", error);
+                        console.error("Error saving contract:", error);
                         showMessageModal('Erro', `Erro ao salvar contrato: ${error.message}`);
                     }
                 });
@@ -1944,7 +2024,8 @@
                         if (lawTypeSelect) lawTypeSelect.value = contract.lawType;
                         if (currentValidityDateInput) currentValidityDateInput.value = contract.currentValidityDate;
                         if (renewalNumberSelect) renewalNumberSelect.value = contract.renewalNumber;
-                        if (contractValueInput) contractValueInput.value = formatCurrency(contract.contractValue);
+                        // Format value for display when editing
+                        if (contractValueInput) contractValueInput.value = formatCurrency(contract.contractValue).replace('R$', '').trim(); // Remove R$ for input field
                         if (contractObservationsInput) contractObservationsInput.value = contract.observations || '';
 
                         calculateMaxContractTerm();
@@ -1955,13 +2036,14 @@
                             contractSelectedUnitsInput.id = 'contract-selected-units';
                             unitsCheckboxContainer.appendChild(contractSelectedUnitsInput);
                         }
+                        // Pass existing participatingUnits to populateUnitButtons
                         populateUnitButtons(unitsCheckboxContainer, contractSelectedUnitsInput, contract.participatingUnits || []);
                         showModal(contractFormModal);
                     } else {
                         showMessageModal('Erro', 'Contrato não encontrado.');
                     }
                 } catch (error) {
-                    console.error("Erro ao editar contrato:", error);
+                    console.error("Error editing contract:", error);
                     showMessageModal('Erro', `Erro ao carregar dados do contrato para edição: ${error.message}`);
                 }
             }
@@ -1993,7 +2075,7 @@
                             showMessageModal('Erro', 'Contrato não encontrado para encerramento.');
                         }
                     } catch (error) {
-                        console.error("Erro ao encerrar contrato:", error);
+                        console.error("Error terminating contract:", error);
                         showMessageModal('Erro', `Erro ao encerrar contrato: ${error.message}`);
                     }
                 });
@@ -2004,8 +2086,9 @@
                     try {
                         await db.collection(`${PUBLIC_COLLECTION_PATH}/${collectionName}`).doc(id).delete();
                         showMessageModal('Sucesso', 'Contrato excluído permanentemente.');
-                    } catch (error) {
-                        console.error(`Erro ao excluir contrato da coleção ${collectionName}:`, error);
+                    }
+                    catch (error) {
+                        console.error(`Error deleting contract from collection ${collectionName}:`, error);
                         showMessageModal('Erro', `Erro ao excluir contrato: ${error.message}`);
                     }
                 });
@@ -2020,7 +2103,8 @@
                         if (renewContractIdInput) renewContractIdInput.value = id;
                         if (renewCurrentSeiInput) renewCurrentSeiInput.value = contract.seiNumber;
                         if (renewCurrentValidityDateInput) renewCurrentValidityDateInput.value = contract.currentValidityDate;
-                        if (renewUpdatedValueInput) renewUpdatedValueInput.value = formatCurrency(contract.contractValue);
+                        // Format value for display when opening renew modal
+                        if (renewUpdatedValueInput) renewUpdatedValueInput.value = formatCurrency(contract.contractValue).replace('R$', '').trim();
                         if (renewNextValidityDurationInput) renewNextValidityDurationInput.value = '';
                         if (renewNextValidityDateInput) renewNextValidityDateInput.value = '';
 
@@ -2031,9 +2115,10 @@
                             renewSelectedUnitsInput.id = 'renew-selected-units';
                             renewUnitsCheckboxContainer.appendChild(renewSelectedUnitsInput);
                         }
+                        // Pass existing participatingUnits to populateUnitButtons for renewal
                         populateUnitButtons(renewUnitsCheckboxContainer, renewSelectedUnitsInput, contract.participatingUnits || []);
                         if (renewHistoryNotesInput) renewHistoryNotesInput.value = contract.contractHistory.map(entry =>
-                            `${new Date(entry.date).toLocaleDateString('pt-BR')} - ${entry.type}: ${entry.notes}`
+                            `${createLocalDate(entry.date).toLocaleDateString('pt-BR')} - ${entry.type}: ${entry.notes}`
                         ).join('\n\n') || 'Nenhum histórico anterior.';
 
                         showModal(renewContractModal);
@@ -2042,7 +2127,7 @@
                     }
                 }
                 catch (error) {
-                    console.error("Erro ao abrir modal de renovação:", error);
+                    console.error("Error opening renewal modal:", error);
                     showMessageModal('Erro', `Erro ao carregar dados do contrato para renovação: ${error.message}`);
                 }
             }
@@ -2066,8 +2151,10 @@
                     const contractId = renewContractIdInput.value;
                     const nextValidityDuration = parseInt(renewNextValidityDurationInput.value);
                     const nextValidityDate = renewNextValidityDateInput.value;
+                    // Parse currency value from input field before saving
                     const updatedValue = parseCurrency(renewUpdatedValueInput.value);
 
+                    // Ensure renewedParticipatingUnits is correctly parsed from the hidden input
                     const renewedParticipatingUnits = JSON.parse(document.getElementById('renew-selected-units')?.value || '[]');
 
                     if (!nextValidityDate || isNaN(nextValidityDuration) || nextValidityDuration <= 0) {
@@ -2085,17 +2172,17 @@
                             const newHistoryEntry = {
                                 type: 'Renovação',
                                 date: new Date().toISOString().split('T')[0],
-                                notes: `Contrato renovado por ${nextValidityDuration} meses. Nova vigência até ${new Date(nextValidityDate).toLocaleDateString('pt-BR')}. Valor atualizado para ${formatCurrency(updatedValue)}.`,
+                                notes: `Contrato renovado por ${nextValidityDuration} meses. Nova vigência até ${createLocalDate(nextValidityDate).toLocaleDateString('pt-BR')}. Valor atualizado para ${formatCurrency(updatedValue)}.`,
                                 changedBy: currentUserId
                             };
 
                             await contractRef.update({
-                                currentValidityDate: nextValidityDate, // Corrigido para usar nextValidityDate
+                                currentValidityDate: nextValidityDate, // Corrected to use nextValidityDate
                                 renewalNumber: newRenewalNumber,
                                 contractValue: updatedValue,
                                 participatingUnits: renewedParticipatingUnits,
                                 contractHistory: firebase.firestore.FieldValue.arrayUnion(newHistoryEntry),
-                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Atualiza data de atividade
+                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Update activity date
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             });
                             showMessageModal('Sucesso', 'Contrato renovado com sucesso!');
@@ -2104,7 +2191,7 @@
                             showMessageModal('Erro', 'Contrato não encontrado para renovação.');
                         }
                     } catch (error) {
-                        console.error("Erro ao renovar contrato:", error);
+                        console.error("Error renewing contract:", error);
                         showMessageModal('Erro', `Erro ao renovar contrato: ${error.message}`);
                     }
                 });
@@ -2134,8 +2221,13 @@
                             apostilamentoDesignacaoSelectedUnitsInput.id = 'apostilamento-designacao-selected-units';
                             apostilamentoDesignacaoUnitsContainer.appendChild(apostilamentoDesignacaoSelectedUnitsInput);
                         }
-                        populateUnitButtons(apostilamentoUnitsContainer, apostilamentoSelectedUnitsInput);
-                        populateUnitButtons(apostilamentoDesignacaoUnitsContainer, apostilamentoDesignacaoSelectedUnitsInput);
+                        // Load current contract units for apostilamento forms if available
+                        const contractDoc = await db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(addendumContractIdInput.value).get();
+                        const currentContractUnits = contractDoc.exists ? (contractDoc.data().participatingUnits || []) : [];
+
+                        populateUnitButtons(apostilamentoUnitsContainer, apostilamentoSelectedUnitsInput, currentContractUnits);
+                        populateUnitButtons(apostilamentoDesignacaoUnitsContainer, apostilamentoDesignacaoSelectedUnitsInput, currentContractUnits);
+
                         if (remanejamentoTableBodyApostilamento) remanejamentoTableBodyApostilamento.innerHTML = '';
                         if (remanejamentoTotalApostilamento) remanejamentoTotalApostilamento.textContent = formatCurrency(0);
                     } else if (selectedType === 'Aditivo') {
@@ -2188,7 +2280,7 @@
                         showMessageModal('Erro', 'Contrato não encontrado para apostilamento/aditivo.');
                     }
                 } catch (error) {
-                    console.error("Erro ao abrir modal de apostilamento/aditivo:", error);
+                    console.error("Error opening addendum/addendum modal:", error);
                     showMessageModal('Erro', `Erro ao carregar dados do contrato: ${error.message}`);
                 }
             }
@@ -2202,7 +2294,7 @@
                     let historyEntry = {};
                     let updateData = {
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza data de atividade
+                        lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Update activity date
                     };
 
                     if (addendumType === 'Apostilamento') {
@@ -2210,6 +2302,7 @@
                         const seiNumber = apostilamentoSeiNumberInput.value;
                         const effectiveDate = apostilamentoDateInput.value;
                         const reajustePercentage = parseFloat(apostilamentoReajustePercentageInput.value) || 0;
+                        // Ensure parsing from hidden input
                         const newDCOUnits = JSON.parse(apostilamentoSelectedUnitsInput.value || '[]');
                         const designacaoUnits = JSON.parse(apostilamentoDesignacaoSelectedUnitsInput.value || '[]');
                         const remanejamentoType = remanejamentoTypeApostilamentoSelect.value;
@@ -2224,8 +2317,8 @@
                             codigo: row.querySelector('.remanejamento-codigo')?.value,
                             descricao: row.querySelector('.remanejamento-descricao')?.value,
                             quantidade: parseFloat(row.querySelector('.remanejamento-quantidade')?.value || 0),
-                            valorUnitario: parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || 'R$ 0,00'),
-                            valorTotal: parseCurrency(row.querySelector('.remanejamento-valor-total')?.textContent || 'R$ 0,00')
+                            valorUnitario: parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || '0,00'),
+                            valorTotal: parseCurrency(row.querySelector('.remanejamento-valor-total')?.textContent || '0,00')
                         }));
 
                         const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
@@ -2238,6 +2331,8 @@
                                 updatedContractValue = (updatedContractValue || 0) * (1 + reajustePercentage / 100);
                             }
                             updateData.contractValue = updatedContractValue;
+                            updateData.participatingUnits = Array.isArray(newDCOUnits) ? newDCOUnits : []; // Update participating units for the contract, ensure array
+
 
                             historyEntry = {
                                 type: `Apostilamento (${apostilamentoNumber})`,
@@ -2252,8 +2347,8 @@
                                 seiNumber: seiNumber,
                                 details: {
                                     reajustePercentage: reajustePercentage,
-                                    newDCOUnits: newDCOUnits,
-                                    designacaoUnits: designacaoUnits,
+                                    newDCOUnits: Array.isArray(newDCOUnits) ? newDCOUnits : [],
+                                    designacaoUnits: Array.isArray(designacaoUnits) ? designacaoUnits : [],
                                     remanejamento: remanejamentoItems.length > 0 ? {
                                         type: remanejamentoType,
                                         cedingUnit: cedingUnit,
@@ -2286,8 +2381,8 @@
                             codigo: row.querySelector('.remanejamento-codigo')?.value,
                             descricao: row.querySelector('.remanejamento-descricao')?.value,
                             quantidade: parseFloat(row.querySelector('.remanejamento-quantidade')?.value || 0),
-                            valorUnitario: parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || 'R$ 0,00'),
-                            valorTotal: parseCurrency(row.querySelector('.remanejamento-valor-total')?.textContent || 'R$ 0,00')
+                            valorUnitario: parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || '0,00'),
+                            valorTotal: parseCurrency(row.querySelector('.remanejamento-valor-total')?.textContent || '0,00')
                         }));
 
                         const acrescimoItems = Array.from(acrescimoTableBody.rows).map(row => ({
@@ -2297,15 +2392,15 @@
                             unidades: JSON.parse(row.querySelector('.acrescimo-unidades-hidden')?.value || '[]'),
                             descritivo: row.querySelector('.acrescimo-descritivo')?.value,
                             quantidade: parseFloat(row.querySelector('.acrescimo-quantidade')?.value || 0),
-                            valorItem: parseCurrency(row.querySelector('.acrescimo-valor-item')?.value || 'R$ 0,00'),
-                            valorTotal: parseCurrency(row.querySelector('.acrescimo-valor-total')?.textContent || 'R$ 0,00'),
+                            valorItem: parseCurrency(row.querySelector('.acrescimo-valor-item')?.value || '0,00'),
+                            valorTotal: parseCurrency(row.querySelector('.acrescimo-valor-total')?.textContent || '0,00'),
                             porcentagem: parseFloat(row.querySelector('.acrescimo-porcentagem')?.value || 0)
                         }));
 
                         const supressaoItems = Array.from(supressaoTableBody.rows).map(row => ({
                             unidadeSuprimida: JSON.parse(row.querySelector('.supressao-unidade-hidden')?.value || '[]'),
                             lote: row.querySelector('.supressao-lote')?.value,
-                            valor: parseCurrency(row.querySelector('.supressao-valor')?.value || 'R$ 0,00'),
+                            valor: parseCurrency(row.querySelector('.supressao-valor')?.value || '0,00'),
                             porcentagem: parseFloat(row.querySelector('.supressao-porcentagem')?.value || 0)
                         }));
 
@@ -2342,7 +2437,7 @@
                             }
                         };
                     } else {
-                        showMessageModal('Erro', 'Tipo de aditivo inválido.');
+                        showMessageModal('Erro', 'Invalid addendum type.');
                         return;
                     }
 
@@ -2352,10 +2447,10 @@
                             ...updateData,
                             contractHistory: firebase.firestore.FieldValue.arrayUnion(historyEntry)
                         });
-                        showMessageModal('Sucesso', `${addendumType} aplicado com sucesso!`);
+                        showMessageModal('Sucesso', `${addendumType} applied successfully!`);
                         closeModal('addendum-modal');
                     } catch (error) {
-                        console.error(`Erro ao aplicar ${addendumType}:`, error);
+                        console.error(`Error applying ${addendumType}:`, error);
                         showMessageModal('Erro', `Erro ao aplicar ${addendumType}: ${error.message}`);
                     }
                 });
@@ -2372,7 +2467,7 @@
                             contract.contractHistory.forEach(entry => {
                                 historyHtml += `
                                     <li>
-                                        <p class="font-semibold">${entry.type} em ${new Date(entry.date).toLocaleDateString('pt-BR')}</p>
+                                        <p class="font-semibold">${entry.type} em ${createLocalDate(entry.date).toLocaleDateString('pt-BR')}</p>
                                         <p class="text-sm text-gray-700">${entry.notes}</p>
                                         ${entry.seiNumber ? `<p class="text-xs text-gray-500">SEI do Documento: ${entry.seiNumber}</p>` : ''}
                                         <p class="text-xs text-gray-500">Por: ${entry.changedBy || 'N/A'}</p>
@@ -2389,7 +2484,7 @@
                         showMessageModal('Erro', 'Contrato não encontrado para visualizar histórico.');
                     }
                 } catch (error) {
-                    console.error("Erro ao visualizar histórico:", error);
+                    console.error("Error viewing history:", error);
                     showMessageModal('Erro', `Erro ao carregar histórico: ${error.message}`);
                 }
             }
@@ -2398,7 +2493,7 @@
             // --- Reminder Management ---
             async function loadReminders() {
                 if (!currentUserId) {
-                    console.log("loadReminders: Usuário não autenticado, não carregando lembretes.");
+                    console.log("loadReminders: User not authenticated, not loading reminders.");
                     const remindersList = document.getElementById('reminders-list');
                     const noRemindersMessage = document.getElementById('no-reminders-message');
                     if (remindersList) remindersList.innerHTML = '<p class="text-center text-gray-500 hidden">Faça login para visualizar os lembretes.</p>';
@@ -2406,12 +2501,12 @@
                     return;
                 }
                 if (unsubscribeReminders) unsubscribeReminders();
-                console.log('loadReminders: Tentando configurar listener para lembretes. Coleção:', `${PUBLIC_COLLECTION_PATH}/reminders`);
+                console.log('loadReminders: Attempting to set up listener for reminders. Collection:', `${PUBLIC_COLLECTION_PATH}/reminders`);
                 unsubscribeReminders = db.collection(`${PUBLIC_COLLECTION_PATH}/reminders`)
                     .orderBy('reminderDate', 'asc')
                     .onSnapshot(snapshot => {
                         const remindersList = document.getElementById('reminders-list'); // Fetch locally
-                        console.log("Snapshot de lembretes recebido:", snapshot.docs.length, "documentos.");
+                        console.log("Reminder snapshot received:", snapshot.docs.length, "documents.");
                         const reminders = [];
                         snapshot.forEach(doc => {
                             const reminder = { id: doc.id, ...doc.data() };
@@ -2420,7 +2515,7 @@
                         displayReminders(reminders);
                         checkEmptyState('reminders');
                     }, error => {
-                        console.error("loadReminders: Erro ao carregar lembretes:", error);
+                        console.error("loadReminders: Error loading reminders:", error);
                         showMessageModal('Erro', `Erro ao carregar lembretes: ${error.message}. Verifique as permissões do Firestore.`);
                     });
             }
@@ -2430,27 +2525,28 @@
                 const noRemindersMessage = document.getElementById('no-reminders-message'); // Fetch locally
 
                 if (!remindersList || !noRemindersMessage) {
-                    console.warn("displayReminders: Elementos 'remindersList' ou 'noRemindersMessage' não encontrados.");
+                    console.warn("displayReminders: Elements 'remindersList' or 'noRemindersMessage' not found.");
                     return;
                 }
 
                 remindersList.innerHTML = '';
-                console.log("displayReminders: Limpando a lista de lembretes. Reminders a exibir:", remindersToDisplay.length);
+                console.log("displayReminders: Clearing reminder list. Reminders to display:", remindersToDisplay.length);
 
                 if (remindersToDisplay.length === 0) {
                     noRemindersMessage.classList.remove('hidden');
-                    console.log("displayReminders: Nenhuns lembretes para exibir, mostrando mensagem de vazio.");
+                    console.log("displayReminders: No reminders to display, showing empty message.");
                     return;
                 } else {
                     noRemindersMessage.classList.add('hidden');
-                    console.log("displayReminders: Lembretes encontrados, escondendo mensagem de vazio.");
+                    console.log("displayReminders: Reminders found, hiding empty message.");
                 }
 
                 remindersToDisplay.forEach(reminder => {
                     const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const reminderDate = new Date(reminder.reminderDate);
-                    reminderDate.setHours(0, 0, 0, 0);
+                    today.setHours(0, 0, 0, 0); // Local midnight for today
+
+                    const reminderDate = createLocalDate(reminder.reminderDate); // Use createLocalDate
+                    reminderDate.setHours(0, 0, 0, 0); // Ensure local midnight for reminder
 
                     const diffTime = reminderDate.getTime() - today.getTime();
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -2478,8 +2574,8 @@
                             <h4 class="text-lg font-semibold text-gray-800">${reminder.title}</h4>
                             <span class="text-xs font-bold px-2 py-1 rounded-full ${statusClass}">${statusText}</span>
                         </div>
-                        <p class="text-gray-600 text-sm mb-2">Data: ${new Date(reminder.reminderDate).toLocaleDateString('pt-BR')}</p>
-                        <p class="text-gray-700 text-sm flex-grow">${reminder.description || 'Nenhuma descrição.'}</p>
+                        <p class="text-gray-600 text-sm mb-2">Data: ${createLocalDate(reminder.reminderDate).toLocaleDateString('pt-BR')}</p>
+                        <p class="text-gray-700 text-sm flex-grow">${reminder.description || 'No description.'}</p>
                         <div class="mt-3 flex justify-end space-x-2">
                             <button class="edit-reminder-button py-1 px-3 bg-blue-500 text-white rounded-md text-xs hover:bg-blue-600 ${isAdmin ? '' : 'hidden'}" data-id="${reminder.id}">
                                 <i class="fas fa-edit"></i> Editar
@@ -2490,7 +2586,7 @@
                         </div>
                     `;
                     remindersList.appendChild(reminderCard);
-                    console.log("displayReminders: Lembrete adicionado ao DOM:", reminder.title);
+                    console.log("displayReminders: Reminder added to DOM:", reminder.title);
                 });
 
                 document.querySelectorAll('.edit-reminder-button').forEach(button => {
@@ -2506,7 +2602,7 @@
 
             if (addReminderButton) {
                 addReminderButton.addEventListener('click', () => {
-                    console.log("Botão 'Adicionar Lembrete' clicado. Abrindo modal.");
+                    console.log("Add Reminder button clicked. Opening modal.");
                     if (reminderForm) reminderForm.reset();
                     if (reminderIdInput) reminderIdInput.value = '';
                     if (reminderFormTitle) reminderFormTitle.textContent = 'Adicionar Novo Lembrete';
@@ -2518,7 +2614,7 @@
             if (reminderForm) {
                 reminderForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
-                    console.log("Formulário de lembrete submetido. Coletando dados...");
+                    console.log("Reminder form submitted. Collecting data...");
 
                     const reminderId = reminderIdInput.value;
                     const title = reminderTitleInput.value;
@@ -2536,19 +2632,19 @@
 
                     try {
                         if (reminderId) {
-                            console.log("Atualizando lembrete existente no Firestore:", reminderId, reminderData);
+                            console.log("Updating existing reminder in Firestore:", reminderId, reminderData);
                             await db.collection(`${PUBLIC_COLLECTION_PATH}/reminders`).doc(reminderId).update(reminderData);
                             showMessageModal('Sucesso', 'Lembrete atualizado com sucesso!');
                         } else {
-                            console.log("Adicionando novo lembrete ao Firestore:", reminderData);
+                            console.log("Adding new reminder to Firestore:", reminderData);
                             await db.collection(`${PUBLIC_COLLECTION_PATH}/reminders`).add(reminderData);
                             showMessageModal('Sucesso', 'Lembrete adicionado com sucesso!');
                         }
                         closeModal('reminder-form-modal');
                         if (reminderForm) reminderForm.reset();
-                        console.log("Lembrete salvo no Firestore. onSnapshot deve disparar a atualização da UI.");
+                        console.log("Reminder saved to Firestore. onSnapshot should trigger UI update.");
                     } catch (error) {
-                        console.error("Erro ao salvar lembrete no Firestore:", error);
+                        console.error("Error saving reminder to Firestore:", error);
                         showMessageModal('Erro', `Erro ao salvar lembrete: ${error.message}`);
                     }
                 });
@@ -2570,7 +2666,7 @@
                         showMessageModal('Erro', 'Lembrete não encontrado.');
                     }
                 } catch (error) {
-                    console.error("Erro ao editar lembrete:", error);
+                    console.error("Error editing reminder:", error);
                     showMessageModal('Erro', `Erro ao carregar dados do lembrete para edição: ${error.message}`);
                 }
             }
@@ -2582,7 +2678,7 @@
                         showMessageModal('Sucesso', 'Lembrete excluído com sucesso!');
                     }
                     catch (error) {
-                        console.error("Erro ao excluir lembrete:", error);
+                        console.error("Error deleting reminder:", error);
                         showMessageModal('Erro', `Erro ao excluir lembrete: ${error.message}`);
                     }
                 });
@@ -2592,7 +2688,7 @@
             // --- Dynamic Unit Button Population (for contract form and addendum modals) ---
             function populateUnitButtons(containerElement, targetInput, selectedUnits = []) {
                 if (!containerElement || !targetInput) {
-                    console.warn("populateUnitButtons: containerElement ou targetInput não encontrados.");
+                    console.warn("populateUnitButtons: containerElement or targetInput not found.");
                     return;
                 }
                 containerElement.innerHTML = '';
@@ -2601,6 +2697,7 @@
                     const button = document.createElement('button');
                     button.type = 'button';
                     button.textContent = unit;
+                    // Check if the unit is in the selectedUnits array to set the 'selected' class
                     button.className = `unit-button ${selectedUnits.includes(unit) ? 'selected' : ''}`;
                     button.addEventListener('click', () => {
                         button.classList.toggle('selected');
@@ -2609,6 +2706,7 @@
                     });
                     containerElement.appendChild(button);
                 });
+                // Ensure the hidden input always reflects the initial selected units
                 targetInput.value = JSON.stringify(selectedUnits);
             }
 
@@ -2624,7 +2722,7 @@
                     <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs remanejamento-codigo"></td>
                     <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs remanejamento-descricao"></td>
                     <td class="py-2 px-4 border-b"><input type="number" min="0" class="w-full border-none bg-transparent text-xs remanejamento-quantidade"></td>
-                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs remanejamento-valor-unitario" placeholder="R$ 0,00"></td>
+                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs remanejamento-valor-unitario" placeholder="0,00"></td>
                     <td class="py-2 px-4 border-b remanejamento-valor-total text-xs">R$ 0,00</td>
                     <td class="py-2 px-4 border-b"><button type="button" class="remove-item-button text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>
                 `;
@@ -2637,17 +2735,9 @@
                     if (input) {
                         input.addEventListener('input', () => calculateRemanejamentoTotal(tableBodyId, totalDisplayId));
                         if (input.classList.contains('remanejamento-valor-unitario')) {
-                            input.addEventListener('input', (e) => {
-                                let value = e.target.value;
-                                value = value.replace(/\D/g, '');
-                                if (value === '') {
-                                    e.target.value = '';
-                                    return;
-                                }
-                                value = (parseInt(value) / 100).toFixed(2);
-                                value = value.replace('.', ',');
-                                value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                                e.target.value = `R$ ${value}`;
+                            input.addEventListener('blur', (e) => { // Format on blur
+                                let value = parseCurrency(e.target.value);
+                                e.target.value = value.toFixed(2).replace('.', ','); // Display with 2 decimals
                             });
                         }
                     }
@@ -2669,7 +2759,7 @@
                 let total = 0;
                 Array.from(tableBody.rows).forEach(row => {
                     const quantity = parseFloat(row.querySelector('.remanejamento-quantidade')?.value || 0);
-                    const unitValue = parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || 'R$ 0,00');
+                    const unitValue = parseCurrency(row.querySelector('.remanejamento-valor-unitario')?.value || '0,00');
                     const rowTotal = quantity * unitValue;
                     row.querySelector('.remanejamento-valor-total').textContent = formatCurrency(rowTotal);
                     total += rowTotal;
@@ -2692,7 +2782,7 @@
                     </td>
                     <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs acrescimo-descritivo"></td>
                     <td class="py-2 px-4 border-b"><input type="number" min="0" class="w-full border-none bg-transparent text-xs acrescimo-quantidade"></td>
-                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs acrescimo-valor-item" placeholder="R$ 0,00"></td>
+                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs acrescimo-valor-item" placeholder="0,00"></td>
                     <td class="py-2 px-4 border-b acrescimo-valor-total text-xs">R$ 0,00</td>
                     <td class="py-2 px-4 border-b"><input type="number" step="0.01" class="w-full border-none bg-transparent text-xs acrescimo-porcentagem"></td>
                     <td class="py-2 px-4 border-b"><button type="button" class="remove-item-button text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>
@@ -2710,17 +2800,9 @@
                     if (input) {
                         input.addEventListener('input', calculateAcrescimoTotal);
                         if (input.classList.contains('acrescimo-valor-item')) {
-                            input.addEventListener('input', (e) => {
-                                let value = e.target.value;
-                                value = value.replace(/\D/g, '');
-                                if (value === '') {
-                                    e.target.value = '';
-                                    return;
-                                }
-                                value = (parseInt(value) / 100).toFixed(2);
-                                value = value.replace('.', ',');
-                                value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                                e.target.value = `R$ ${value}`;
+                            input.addEventListener('blur', (e) => { // Format on blur
+                                let value = parseCurrency(e.target.value);
+                                e.target.value = value.toFixed(2).replace('.', ','); // Display with 2 decimals
                             });
                         }
                     }
@@ -2742,7 +2824,7 @@
                 let total = 0;
                 Array.from(tableBody.rows).forEach(row => {
                     const quantity = parseFloat(row.querySelector('.acrescimo-quantidade')?.value || 0);
-                    const itemValue = parseCurrency(row.querySelector('.acrescimo-valor-item')?.value || 'R$ 0,00');
+                    const itemValue = parseCurrency(row.querySelector('.acrescimo-valor-item')?.value || '0,00');
                     const rowTotal = quantity * itemValue;
                     row.querySelector('.acrescimo-valor-total').textContent = formatCurrency(rowTotal);
                     total += rowTotal;
@@ -2761,7 +2843,7 @@
                         <div class="supressao-units-container flex flex-wrap gap-1 mt-1"></div>
                     </td>
                     <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs supressao-lote"></td>
-                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs supressao-valor" placeholder="R$ 0,00"></td>
+                    <td class="py-2 px-4 border-b"><input type="text" class="w-full border-none bg-transparent text-xs supressao-valor" placeholder="0,00"></td>
                     <td class="py-2 px-4 border-b"><input type="number" step="0.01" class="w-full border-none bg-transparent text-xs supressao-porcentagem"></td>
                     <td class="py-2 px-4 border-b"><button type="button" class="remove-item-button text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash-alt"></i></button></td>
                 `;
@@ -2775,17 +2857,9 @@
 
                 if (valueInput) {
                     valueInput.addEventListener('input', calculateSupressaoTotal);
-                    valueInput.addEventListener('input', (e) => {
-                        let value = e.target.value;
-                        value = value.replace(/\D/g, '');
-                        if (value === '') {
-                            e.target.value = '';
-                            return;
-                        }
-                        value = (parseInt(value) / 100).toFixed(2);
-                        value = value.replace('.', ',');
-                        value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                        e.target.value = `R$ ${value}`;
+                    valueInput.addEventListener('blur', (e) => { // Format on blur
+                        let value = parseCurrency(e.target.value);
+                        e.target.value = value.toFixed(2).replace('.', ','); // Display with 2 decimals
                     });
                 }
 
@@ -2804,7 +2878,7 @@
 
                 let total = 0;
                 Array.from(tableBody.rows).forEach(row => {
-                    const value = parseCurrency(row.querySelector('.supressao-valor')?.value || 'R$ 0,00');
+                    const value = parseCurrency(row.querySelector('.supressao-valor')?.value || '0,00');
                     total += value;
                 });
                 totalDisplay.textContent = formatCurrency(total);
@@ -2829,7 +2903,7 @@
 
             function calculateMaxContractTerm() {
                 if (!initialProcessDateInput || !lawTypeSelect || !maxContractTermInput) {
-                    console.warn("calculateMaxContractTerm: Um ou mais elementos de input não encontrados.");
+                    console.warn("calculateMaxContractTerm: One or more input elements not found.");
                     return;
                 }
 
@@ -2841,7 +2915,7 @@
                     return;
                 }
 
-                const initialDate = new Date(initialDateStr);
+                const initialDate = createLocalDate(initialDateStr); // Use createLocalDate
                 let maxTermMonths = 0;
 
                 if (lawType === '8666') {
@@ -2873,7 +2947,7 @@
                     }
                     populateUnitButtons(unitsCheckboxContainer, contractSelectedUnitsInput, []);
                     if (maxContractTermInput) maxContractTermInput.value = '';
-                    if (contractValueInput) contractValueInput.value = '';
+                    if (contractValueInput) contractValueInput.value = ''; // Clear value, not format
                     showModal(contractFormModal);
                 });
             }
@@ -2883,8 +2957,20 @@
                 button.addEventListener('click', (e) => {
                     const tab = e.target.dataset.tab;
                     setActiveTab(tab);
+                    if (tab === 'contracts') {
+                        loadContracts(); // Load all contracts when the Contracts tab is clicked
+                    }
                 });
             });
+
+            // Add event listener for "Vencendo" count
+            if (expiringContractsCountSpan) {
+                expiringContractsCountSpan.addEventListener('click', () => {
+                    setActiveTab('contracts'); // Activate the contracts tab
+                    loadContracts('expiring'); // Filter contracts by 'expiring' status
+                });
+            }
+
 
             function checkEmptyState(tabName) {
                 const listElement = document.getElementById(`${tabName}-list`);
@@ -2899,16 +2985,16 @@
                 } else if (tabName === 'terminated-contracts') {
                     messageElement = document.getElementById('no-terminated-contracts-message');
                 } else {
-                    console.warn(`checkEmptyState: Nome da aba desconhecido: ${tabName}`);
+                    console.warn(`checkEmptyState: Unknown tab name: ${tabName}`);
                     return;
                 }
 
                 if (!listElement || !messageElement) {
-                    console.warn(`checkEmptyState: Elementos para tab ${tabName} (lista: ${listElement ? 'encontrada' : 'NÃO encontrada'}, mensagem: ${messageElement ? 'encontrada' : 'NÃO encontrada'}) não encontrados.`);
+                    console.warn(`checkEmptyState: Elements for tab ${tabName} (list: ${listElement ? 'found' : 'NOT found'}, message: ${messageElement ? 'found' : 'NOT found'}) not found.`);
                     return;
                 }
 
-                // Para a aba de contratos, verifica se há 'sei-group-container'
+                // For the contracts tab, check if there are 'sei-group-container'
                 const hasActualItems = tabName === 'contracts'
                     ? Array.from(listElement.children).some(child => child.classList.contains('sei-group-container'))
                     : Array.from(listElement.children).some(child => child !== messageElement);
@@ -2920,51 +3006,19 @@
                 }
             }
 
-            if (contractValueInput) {
-                contractValueInput.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/\D/g, '');
-                    if (value === '') {
-                        e.target.value = '';
-                        return;
-                    }
-                    value = (parseInt(value) / 100).toFixed(2);
-                    value = value.replace('.', ',');
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                    e.target.value = `R$ ${value}`;
+            // Centralized currency input formatting on blur
+            document.querySelectorAll('#contract-value, #renew-updated-value, #renewal-updated-value-aditivo').forEach(input => {
+                input.addEventListener('blur', (e) => {
+                    let value = parseCurrency(e.target.value);
+                    e.target.value = value.toFixed(2).replace('.', ','); // Always show 2 decimals, use comma for decimal separator
                 });
-            }
-
-
-            if (renewUpdatedValueInput) {
-                renewUpdatedValueInput.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/\D/g, '');
-                    if (value === '') {
-                        e.target.value = '';
-                        return;
-                    }
-                    value = (parseInt(value) / 100).toFixed(2);
-                    value = value.replace('.', ',');
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                    e.target.value = `R$ ${value}`;
+                // When the modal opens, if there's a pre-filled value, format it
+                input.addEventListener('focus', (e) => {
+                    // Remove formatting when focusing to allow raw input
+                    e.target.value = parseCurrency(e.target.value).toString();
                 });
-            }
+            });
 
-            if (renewalUpdatedValueAditivoInput) {
-                renewalUpdatedValueAditivoInput.addEventListener('input', (e) => {
-                    let value = e.target.value;
-                    value = value.replace(/\D/g, '');
-                    if (value === '') {
-                        e.target.value = '';
-                        return;
-                    }
-                    value = (parseInt(value) / 100).toFixed(2);
-                    value = value.replace('.', ',');
-                    value = value.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-                    e.target.value = `R$ ${value}`;
-                });
-            }
 
             if (addRemanejamentoItemApostilamentoButton) {
                 addRemanejamentoItemApostilamentoButton.addEventListener('click', () => addRemanejamentoItem('remanejamento-table-body-apostilamento', 'remanejamento-total-apostilamento'));
@@ -2989,11 +3043,11 @@
                     try {
                         await db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId).update({
                             isInRenewal: true,
-                            lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Atualiza data de atividade
+                            lastActivityDate: firebase.firestore.FieldValue.serverTimestamp() // Update activity date
                         });
-                        console.log(`Contrato ${contractId} marcado como 'em renovação'.`);
+                        console.log(`Contract ${contractId} marked as 'in renewal'.`);
                     } catch (error) {
-                        console.error("Erro ao marcar contrato como 'em renovação':", error);
+                        console.error("Error marking contract as 'in renewal':", error);
                         showMessageModal('Erro', `Não foi possível marcar o contrato como 'em renovação': ${error.message}`);
                         return;
                     }
@@ -3012,7 +3066,7 @@
                         if (checklistContractCompany) checklistContractCompany.textContent = contract.companyName;
 
                         if (renewalDurationAditivoInput) renewalDurationAditivoInput.value = '';
-                        if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.value = formatCurrency(contract.contractValue);
+                        if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.value = formatCurrency(contract.contractValue).replace('R$', '').trim(); // Format for display
 
                         renderChecklistItems(contract.companyName);
                         renderUnitConcordance(contract.participatingUnits || []);
@@ -3020,10 +3074,10 @@
 
                         showModal(aditivoRenewalChecklistModal);
                     } else {
-                        showMessageModal('Erro', 'Contrato não encontrado para checklist de aditivo.');
+                        showMessageModal('Erro', 'Contract not found for addendum checklist.');
                     }
                 } catch (error) {
-                    console.error("Erro ao abrir modal de checklist de aditivo:", error);
+                    console.error("Error opening addendum checklist modal:", error);
                     showMessageModal('Erro', `Erro ao carregar dados do contrato para checklist: ${error.message}`);
                 }
             }
@@ -3037,7 +3091,7 @@
                         itemText = `Ofício da Empresa - ${companyName}`;
                     }
                     if (item === "Concordância das unidades") {
-                        return;
+                        return; // Skip this item as it's handled separately
                     }
 
                     const div = document.createElement('div');
@@ -3057,8 +3111,8 @@
             function renderUnitConcordance(participatingUnits) {
                 if (!unitConcordanceContainer) return;
                 unitConcordanceContainer.innerHTML = '';
-                if (participatingUnits.length === 0) {
-                    unitConcordanceContainer.innerHTML = '<p class="text-sm text-gray-500">Nenhuma unidade participante para verificar.</p>';
+                if (!Array.isArray(participatingUnits) || participatingUnits.length === 0) {
+                    unitConcordanceContainer.innerHTML = '<p class="text-sm text-gray-500">No participating units to check.</p>';
                     return;
                 }
 
@@ -3068,9 +3122,9 @@
                     div.innerHTML = `
                         <span class="text-sm font-medium text-gray-700">${unit}</span>
                         <div class="flex items-center space-x-4">
-                            <input type="radio" id="unit-concordance-${index}-yes" name="unit-concordance-${index}" value="Sim" class="unit-concordance-radio h-4 w-4 text-green-600 border-gray-300 rounded">
+                            <input type="radio" id="unit-concordance-${index}-yes" name="unit-concordance-${unit}" value="Sim" class="unit-concordance-radio h-4 w-4 text-green-600 border-gray-300 rounded" data-unit="${unit}">
                             <label for="unit-concordance-${index}-yes" class="text-sm text-gray-700">Sim</label>
-                            <input type="radio" id="unit-concordance-${index}-no" name="unit-concordance-${index}" value="Não" class="unit-concordance-radio h-4 w-4 text-red-600 border-gray-300 rounded">
+                            <input type="radio" id="unit-concordance-${index}-no" name="unit-concordance-${unit}" value="Não" class="unit-concordance-radio h-4 w-4 text-red-600 border-gray-300 rounded" data-unit="${unit}">
                             <label for="unit-concordance-${index}-no" class="text-sm text-gray-700">Não</label>
                         </div>
                     `;
@@ -3116,14 +3170,14 @@
                         renewButton.disabled = false;
                     }
                     if (renewalDurationInput) renewalDurationInput.disabled = false;
-                    if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.disabled = false;
+                    if (renewalUpdatedValueInput) renewalUpdatedValueInput.disabled = false;
                 } else {
                     if (renewButton) {
                         renewButton.classList.add('opacity-50', 'cursor-not-allowed');
                         renewButton.disabled = true;
                     }
                     if (renewalDurationInput) renewalDurationInput.disabled = true;
-                    if (renewalUpdatedValueAditivoInput) renewalUpdatedValueAditivoInput.disabled = true;
+                    if (renewalUpdatedValueInput) renewalUpdatedValueInput.disabled = true;
                 }
             }
 
@@ -3132,12 +3186,21 @@
                     e.preventDefault();
                     const contractId = checklistContractIdInput.value;
                     const renewalDuration = parseInt(renewalDurationAditivoInput.value);
-                    const updatedValue = parseCurrency(renewalUpdatedValueAditivoInput.value);
+                    const updatedValue = parseCurrency(renewalUpdatedValueAditivoInput.value); // Parse currency
 
                     if (isNaN(renewalDuration) || renewalDuration <= 0) {
                         showMessageModal('Erro', 'Por favor, insira um prazo de renovação válido em meses.');
                         return;
                     }
+
+                    // Collect unit concordance data
+                    const unitConcordanceData = {};
+                    document.querySelectorAll('.unit-concordance-radio:checked').forEach(radio => {
+                        const unit = radio.dataset.unit;
+                        const concorded = radio.value === 'Sim';
+                        unitConcordanceData[unit] = concorded;
+                    });
+
 
                     try {
                         const contractRef = db.collection(`${PUBLIC_COLLECTION_PATH}/contracts`).doc(contractId);
@@ -3150,8 +3213,11 @@
                             const historyEntry = {
                                 type: 'Aditivo - Renovação Efetivada',
                                 date: new Date().toISOString().split('T')[0],
-                                notes: `Contrato renovado via Aditivo por ${renewalDuration} meses. Nova vigência até ${new Date(newValidityDate).toLocaleDateString('pt-BR')}. Valor atualizado para ${formatCurrency(updatedValue)}.`,
-                                changedBy: currentUserId
+                                notes: `Contrato renovado via Aditivo por ${renewalDuration} meses. Nova vigência até ${createLocalDate(newValidityDate).toLocaleDateString('pt-BR')}. Valor atualizado para ${formatCurrency(updatedValue)}.`,
+                                changedBy: currentUserId,
+                                details: { // Added details object for unit concordance
+                                    unitConcordance: unitConcordanceData
+                                }
                             };
 
                             await contractRef.update({
@@ -3160,16 +3226,16 @@
                                 contractValue: updatedValue,
                                 isInRenewal: false,
                                 contractHistory: firebase.firestore.FieldValue.arrayUnion(historyEntry),
-                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Atualiza data de atividade
+                                lastActivityDate: firebase.firestore.FieldValue.serverTimestamp(), // Update activity date
                                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                             });
                             showMessageModal('Sucesso', 'Contrato renovado via Aditivo com sucesso!');
                             closeModal('aditivo-renewal-checklist-modal');
                         } else {
-                            showMessageModal('Erro', 'Contrato não encontrado para renovação via aditivo.');
+                            showMessageModal('Erro', 'Contract not found for renewal via addendum.');
                         }
                     } catch (error) {
-                        console.error("Erro ao renovar contrato via aditivo:", error);
+                        console.error("Error renewing contract via addendum:", error);
                         showMessageModal('Erro', `Erro ao renovar contrato via aditivo: ${error.message}`);
                     }
                 });
