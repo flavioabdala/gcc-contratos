@@ -368,3 +368,70 @@ window.lancarPelada = async () => {
     alert('Pelada e Juiz lançados como SAÍDA!');
     reloadData();
 }
+// 1. Atualize a lista de abas para incluir Configurações
+const BASE_TAB_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'atletas', label: 'Atletas' },
+  { key: 'transacoes', label: 'Transações' },
+  { key: 'penalidades', label: 'Penalidades' },
+  { key: 'peladas', label: 'Peladas' },
+  { key: 'relatorios', label: 'Relatórios' },
+  { key: 'configuracoes', label: 'Configurações' } // Nova aba
+];
+
+// 2. Adicione a referência da nova seção no objeto 'refs'
+// (Dentro de refs.sections)
+// configuracoes: document.getElementById('sec-configuracoes')
+
+// 3. Adicione a função de renderização da aba
+function renderConfiguracoes() {
+  if (!state.canEdit) {
+    refs.sections.configuracoes.innerHTML = `<h3>Configurações</h3><p class="muted">Acesso restrito ao administrador.</p>`;
+    return;
+  }
+
+  refs.sections.configuracoes.innerHTML = `
+    <h3>Configurações do Sistema</h3>
+    <p class="muted">Ajuste os valores base para cálculos automáticos.</p>
+    
+    <form id="config-form" class="card panel grid-form">
+      <label>Mensalidade Linha (R$)
+        <input type="number" id="cfg-lin" value="${state.config.rules.mensalidadeLinha}">
+      </label>
+      <label>Mensalidade Goleiro (R$)
+        <input type="number" id="cfg-gol" value="${state.config.rules.mensalidadeGoleiro}">
+      </label>
+      <label>Custo da Pelada (Aluguel R$)
+        <input type="number" id="cfg-pel" value="${state.config.rules.custoPelada}">
+      </label>
+      <label>Pagamento Juiz (R$)
+        <input type="number" id="cfg-juiz" value="${state.config.rules.pagamentoGilberto}">
+      </label>
+      <label>Tesoureiros (separe por vírgula)
+        <input type="text" id="cfg-tes" value="${state.config.rules.tesoureiros.join(', ')}">
+      </label>
+      <button type="submit" class="btn primary">Salvar Alterações</button>
+    </form>
+  `;
+
+  document.getElementById('config-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const newRules = {
+      mensalidadeLinha: Number(document.getElementById('cfg-lin').value),
+      mensalidadeGoleiro: Number(document.getElementById('cfg-gol').value),
+      custoPelada: Number(document.getElementById('cfg-pel').value),
+      pagamentoGilberto: Number(document.getElementById('cfg-juiz').value),
+      tesoureiros: document.getElementById('cfg-tes').value.split(',').map(t => t.trim())
+    };
+
+    try {
+      await setDoc(doc(db, 'configuracoes', 'financeiro'), { rules: newRules, updatedAt: serverTimestamp() });
+      alert('Configurações atualizadas com sucesso!');
+      await reloadData();
+    } catch (error) {
+      alert('Erro ao salvar: ' + error.message);
+    }
+  };
+}
+
+// 4. Não esqueça de chamar renderConfiguracoes() dentro da sua função renderAll()
