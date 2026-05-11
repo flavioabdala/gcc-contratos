@@ -180,7 +180,7 @@ async function ensureConfigDefaults() {
   const snap = await getDoc(configRef);
   if (!snap.exists()) {
     await setDoc(configRef, {
-      admins: ['flavio@rf7.com.br', 'flavio'],
+      admins: ['flavioabdala@yahoo.com.br', 'flavioabdala@gmail.com'],
       rules: RULES,
       updatedAt: serverTimestamp()
     });
@@ -188,12 +188,22 @@ async function ensureConfigDefaults() {
 }
 
 function detectAdmin(user, config) {
-  const email = (user?.email || '').toLowerCase();
-  const display = (user?.displayName || '').toLowerCase();
-  const admins = (config?.admins || []).map((a) => String(a).toLowerCase());
+  const email = (user?.email || '').toLowerCase().trim();
+  const display = (user?.displayName || '').toLowerCase().trim();
+  
+  // Lista prioritária de Administradores
+  const superAdmins = [
+    'flavioabdala@yahoo.com.br',
+    'flavioabdala@gmail.com',
+    'flavio@rf7.com.br'
+  ];
 
-  return admins.some((adm) => email.includes(adm) || display.includes(adm)) ||
-    email.includes('flavio') || display.includes('flávio') || display.includes('flavio');
+  const adminsInConfig = (config?.admins || []).map(a => String(a).toLowerCase().trim());
+
+  return superAdmins.includes(email) || 
+         adminsInConfig.includes(email) ||
+         display.includes('flávio') || 
+         display.includes('flavio');
 }
 
 async function reloadData() {
@@ -204,6 +214,8 @@ async function reloadData() {
 
   const profile = await ensureUserProfile(state.user);
   state.currentUserRole = profile?.role || 'visualizador';
+  
+  // A verificação de canEdit agora usa a função detectAdmin melhorada
   state.canEdit = state.currentUserRole === 'admin' || detectAdmin(state.user, state.config);
 
   const atletasSnap = await getDocs(query(collection(db, 'atletas'), orderBy('nome')));
@@ -928,7 +940,8 @@ async function determineRoleForSignup(email) {
   const usersSnap = await getDocs(collection(db, 'usuarios'));
   const isFirstUser = usersSnap.empty;
 
-  if (isFirstUser && normalizedEmail.includes('flavio')) {
+  // Se for o primeiro usuário ou contiver flavio no e-mail, é admin
+  if (isFirstUser || normalizedEmail.includes('flavio')) {
     return 'admin';
   }
 
@@ -1015,17 +1028,18 @@ async function handleRegisterSubmit({ form, nameInputId, emailInputId, passwordI
       createdBy: state.user?.email || email
     });
 
-    form.reset();
-    if (!state.user) {
-      messageRef.textContent = role === 'admin'
-        ? 'Conta criada com perfil administrador. Faça login para continuar.'
-        : 'Conta criada com perfil visualizador. Faça login para continuar.';
-      setTimeout(() => showAuthView('login'), 900);
-      return;
-    }
+    messageRef.textContent = 'Usuário criado com sucesso. Redirecionando...';
 
-    messageRef.textContent = 'Usuário criado com sucesso.';
-    await reloadData();
+    // RESET E REDIRECIONAMENTO CORRIGIDO
+    setTimeout(async () => {
+        form.reset();
+        if (!state.user) {
+            showAuthView('login');
+        } else {
+            await reloadData();
+        }
+    }, 1500);
+
   } catch (error) {
     messageRef.textContent = authErrorMessage(error);
   }
