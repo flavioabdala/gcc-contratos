@@ -14,10 +14,14 @@
     <section id="login-view" class="view center-view">
       <div class="card login-card">
         <h1>Pelada RF7</h1>
-        <p class="muted">Gestão financeira completa</p>
+        <p class="muted">Gestão financeira completa da caixinha</p>
         <form id="login-form" class="grid-form">
-          <label>Email <input type="email" id="login-email" required /></label>
-          <label>Senha <input type="password" id="login-password" required /></label>
+          <label>Email
+            <input type="email" id="login-email" required placeholder="seu@email.com" />
+          </label>
+          <label>Senha
+            <input type="password" id="login-password" required placeholder="********" />
+          </label>
           <button type="submit" class="btn primary">Entrar</button>
         </form>
         <div class="auth-links">
@@ -50,7 +54,7 @@
           <p id="user-badge" class="muted"></p>
         </div>
         <div class="row gap-sm">
-          <button id="refresh-data" class="btn">Atualizar</button>
+          <button id="refresh-data" class="btn">Atualizar Dados</button>
           <button id="logout-btn" class="btn danger">Sair</button>
         </div>
       </header>
@@ -63,7 +67,7 @@
         <section id="sec-atletas" class="panel hidden">
           <h3>Gestão de Atletas</h3>
           <form id="ath-form" class="grid-form">
-            <label>Nome <input type="text" id="ath-nome" required /></label>
+            <label>Nome do Atleta <input type="text" id="ath-nome" required /></label>
             <label>Categoria
               <select id="ath-cat">
                 <option value="linha">Jogador de Linha</option>
@@ -77,58 +81,35 @@
                 <option value="inativo">Inativo</option>
               </select>
             </label>
-            <button type="submit" class="btn primary">Salvar</button>
+            <button type="submit" class="btn primary">Salvar Atleta</button>
           </form>
-          <div id="atletas-list" class="table-wrap"></div>
+          <div id="atletas-list" class="table-wrap" style="margin-top:20px"></div>
         </section>
 
         <section id="sec-transacoes" class="panel hidden">
-          <h3>Transações e Mensalidades</h3>
+          <h3>Caixa e Mensalidades</h3>
           <div class="grid-2">
             <article class="card panel">
-              <h4>1. Gerar Débitos (Mês)</h4>
+              <h4>1. Débitos Mensais</h4>
               <input type="month" id="gen-month">
-              <button id="btn-gerar-mes" class="btn primary">Gerar para Ativos</button>
+              <button id="btn-gerar-mes" class="btn primary">Gerar para Todos</button>
             </article>
-
             <article class="card panel">
-              <h4>2. Registrar Pagamento / Entrada</h4>
+              <h4>2. Baixar Pagamento</h4>
               <form id="pay-form" class="grid-form">
                 <label>Atleta <select id="pay-ath" required></select></label>
-                <label>Tesoureiro <select id="pay-tes" required></select></label>
                 <label>Mês <input type="month" id="pay-month" required></label>
-                <label>Valor R$ <input type="number" id="pay-val" step="0.01" required></label>
-                <button type="submit" class="btn primary">Baixar</button>
+                <label>Valor <input type="number" id="pay-val" step="0.01" required></label>
+                <button type="submit" class="btn primary">Registrar</button>
               </form>
             </article>
           </div>
           <div id="transacoes-list" class="table-wrap" style="margin-top:20px"></div>
         </section>
 
-        <section id="sec-penalidades" class="panel hidden">
-          <h3>Lançar Penalidades</h3>
-          <form id="pen-form" class="grid-form">
-            <label>Atleta <select id="p-ath" required></select></label>
-            <label>Tesoureiro <select id="p-tes" required></select></label>
-            <label>Tipo
-              <select id="p-type">
-                <option value="atraso_leve">Atraso Leve (R$ 2)</option>
-                <option value="atraso_grave">Atraso Grave (R$ 5)</option>
-                <option value="falta">Falta (R$ 10)</option>
-                <option value="amarelo">Cartão Amarelo (R$ 2)</option>
-                <option value="vermelho">Cartão Vermelho (R$ 10)</option>
-              </select>
-            </label>
-            <button type="submit" class="btn primary">Aplicar Multa (Débito)</button>
-          </form>
-        </section>
-
         <section id="sec-peladas" class="panel hidden">
-          <h3>Lançamento de Pelada</h3>
-          <div class="card panel" style="padding: 20px;">
-            <label>Tesoureiro Responsável <select id="pel-tes" class="input-field" style="margin-bottom:15px"></select></label>
-            <button id="btn-lancar-pelada" class="btn primary" style="width:100%; padding:15px">Registrar Saídas (Aluguel + Juiz)</button>
-          </div>
+          <h3>Lançar Pelada</h3>
+          <button id="btn-lancar-pelada" class="btn primary" style="padding:15px">Registrar Pelada (Aluguel + Juiz)</button>
         </section>
 
         <section id="sec-relatorios" class="panel hidden"></section>
@@ -138,9 +119,9 @@
           <form id="config-form" class="grid-form">
             <label>Mensalidade Linha <input type="number" id="cfg-lin" step="0.01" /></label>
             <label>Mensalidade Goleiro <input type="number" id="cfg-gol" step="0.01" /></label>
-            <label>Aluguel Pelada <input type="number" id="cfg-pel" step="0.01" /></label>
-            <label>Juiz (Gilberto) <input type="number" id="cfg-juiz" step="0.01" /></label>
-            <label>Tesoureiros (Vírgula) <input type="text" id="cfg-tes" /></label>
+            <label>Custo Pelada <input type="number" id="cfg-pel" step="0.01" /></label>
+            <label>Pagamento Juiz <input type="number" id="cfg-juiz" step="0.01" /></label>
+            <label>Tesoureiros <input type="text" id="cfg-tes" /></label>
             <button type="submit" class="btn primary">Salvar</button>
           </form>
         </section>
