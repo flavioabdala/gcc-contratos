@@ -24,7 +24,26 @@
           </label>
           <button type="submit" class="btn primary">Entrar</button>
         </form>
+        <div class="auth-links">
+          <button id="open-register" type="button" class="link-btn">Criar conta</button>
+        </div>
         <p id="login-message" class="message"></p>
+      </div>
+    </section>
+
+    <section id="register-view" class="view center-view hidden">
+      <div class="card login-card">
+        <h1>Criar conta</h1>
+        <form id="register-form" class="grid-form">
+          <label>Nome <input type="text" id="register-name" required /></label>
+          <label>Email <input type="email" id="register-email" required /></label>
+          <label>Senha <input type="password" id="register-password" required minlength="6" /></label>
+          <button type="submit" class="btn primary">Cadastrar</button>
+        </form>
+        <div class="auth-links">
+          <button id="back-to-login" type="button" class="link-btn">Voltar para login</button>
+        </div>
+        <p id="register-message" class="message"></p>
       </div>
     </section>
 
@@ -48,9 +67,7 @@
         <section id="sec-atletas" class="panel hidden">
           <h3>Gestão de Atletas</h3>
           <form id="ath-form" class="grid-form">
-            <label>Nome do Atleta
-              <input type="text" id="ath-nome" required placeholder="Ex: João Silva" />
-            </label>
+            <label>Nome do Atleta <input type="text" id="ath-nome" required /></label>
             <label>Categoria
               <select id="ath-cat">
                 <option value="linha">Jogador de Linha</option>
@@ -64,93 +81,53 @@
                 <option value="inativo">Inativo</option>
               </select>
             </label>
-            <button type="submit" class="btn primary">Cadastrar Atleta</button>
+            <button type="submit" class="btn primary">Salvar Atleta</button>
           </form>
-          <div id="atletas-list" class="table-wrap"></div>
+          <div id="atletas-list" class="table-wrap" style="margin-top:20px"></div>
         </section>
 
         <section id="sec-transacoes" class="panel hidden">
           <h3>Caixa e Mensalidades</h3>
           <div class="grid-2">
             <article class="card panel">
-              <h4>1. Gerar Débitos Mensais</h4>
-              <p class="muted">Gera a cobrança automática para todos os atletas ativos do mês.</p>
-              <div class="row gap-sm" style="margin-top: 10px;">
-                <input type="month" id="gen-month" class="input-field">
-                <button id="btn-gerar-mes" class="btn primary">Gerar Todos</button>
-              </div>
+              <h4>1. Débitos Mensais</h4>
+              <input type="month" id="gen-month">
+              <button id="btn-gerar-mes" class="btn primary">Gerar para Todos</button>
             </article>
-
             <article class="card panel">
               <h4>2. Baixar Pagamento</h4>
               <form id="pay-form" class="grid-form">
                 <label>Atleta <select id="pay-ath" required></select></label>
                 <label>Mês <input type="month" id="pay-month" required></label>
-                <label>Valor Pago <input type="number" id="pay-val" step="0.01" required></label>
-                <button type="submit" class="btn primary">Registrar Recebimento</button>
+                <label>Valor <input type="number" id="pay-val" step="0.01" required></label>
+                <button type="submit" class="btn primary">Registrar</button>
               </form>
             </article>
           </div>
-          <div id="transacoes-list" class="table-wrap" style="margin-top: 20px;"></div>
-        </section>
-
-        <section id="sec-penalidades" class="panel hidden">
-          <h3>Penalidades</h3>
-          <form id="pen-form" class="grid-form">
-            <label>Atleta <select id="p-ath" required></select></label>
-            <label>Tipo
-              <select id="p-type">
-                <option value="cartao_amarelo">Cartão Amarelo</option>
-                <option value="cartao_vermelho">Cartão Vermelho</option>
-                <option value="falta">Falta Sem Aviso</option>
-                <option value="atraso">Atraso</option>
-              </select>
-            </label>
-            <button type="submit" class="btn primary">Aplicar Multa</button>
-          </form>
+          <div id="transacoes-list" class="table-wrap" style="margin-top:20px"></div>
         </section>
 
         <section id="sec-peladas" class="panel hidden">
-          <h3>Lançamento de Pelada</h3>
-          <div class="card panel" style="max-width: 500px;">
-            <p>Clique no botão abaixo para lançar as saídas de <strong>Aluguel</strong> e <strong>Juiz</strong> da pelada de hoje.</p>
-            <button id="btn-lancar-pelada" class="btn primary" style="width: 100%; margin-top: 15px; padding: 15px;">
-              Lançar Pelada (Saída de Caixa)
-            </button>
-          </div>
-          <div id="peladas-list" class="table-wrap" style="margin-top: 20px;"></div>
+          <h3>Lançar Pelada</h3>
+          <button id="btn-lancar-pelada" class="btn primary" style="padding:15px">Registrar Pelada (Aluguel + Juiz)</button>
         </section>
 
         <section id="sec-relatorios" class="panel hidden"></section>
 
         <section id="sec-configuracoes" class="panel hidden">
           <h3>Configurações de Valores</h3>
-          <p class="muted">Defina os preços padrão para automatizar os cálculos do sistema.</p>
-          <form id="config-form" class="grid-form" style="margin-top: 20px;">
-            <label>Mensalidade Linha (R$)
-              <input type="number" id="cfg-lin" step="0.01" required />
-            </label>
-            <label>Mensalidade Goleiro (R$)
-              <input type="number" id="cfg-gol" step="0.01" required />
-            </label>
-            <label>Custo Pelada / Aluguel (R$)
-              <input type="number" id="cfg-pel" step="0.01" required />
-            </label>
-            <label>Pagamento Gilberto / Juiz (R$)
-              <input type="number" id="cfg-juiz" step="0.01" required />
-            </label>
-            <label>Tesoureiros (separe por vírgula)
-              <input type="text" id="cfg-tes" placeholder="Flávio, Tim, Fabiano" required />
-            </label>
-            <button type="submit" class="btn primary">Salvar Configurações</button>
+          <form id="config-form" class="grid-form">
+            <label>Mensalidade Linha <input type="number" id="cfg-lin" step="0.01" /></label>
+            <label>Mensalidade Goleiro <input type="number" id="cfg-gol" step="0.01" /></label>
+            <label>Custo Pelada <input type="number" id="cfg-pel" step="0.01" /></label>
+            <label>Pagamento Juiz <input type="number" id="cfg-juiz" step="0.01" /></label>
+            <label>Tesoureiros <input type="text" id="cfg-tes" /></label>
+            <button type="submit" class="btn primary">Salvar</button>
           </form>
         </section>
-
-        <section id="sec-usuarios" class="panel hidden"></section>
       </main>
     </section>
   </div>
-
   <script type="module" src="./app.js"></script>
 </body>
 </html>
