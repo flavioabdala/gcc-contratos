@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pelada RF7 | Gestão Financeira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="login-view" class="view center-view">
+      <div class="card login-card">
+        <h1>Pelada RF7</h1>
+        <p class="muted">Gestão financeira completa da caixinha</p>
+        <form id="login-form" class="grid-form">
+          <label>Email
+            <input type="email" id="login-email" required placeholder="seu@email.com" />
+          </label>
+          <label>Senha
+            <input type="password" id="login-password" required placeholder="********" />
+          </label>
+          <button type="submit" class="btn primary">Entrar</button>
+        </form>
+        <div class="auth-links">
+          <button id="open-register" type="button" class="link-btn">Criar conta</button>
+        </div>
+        <p id="login-message" class="message"></p>
+      </div>
+    </section>
+
+    <section id="register-view" class="view center-view hidden">
+      <div class="card login-card">
+        <h1>Criar conta</h1>
+        <p class="muted">Cadastre um novo usuário para acessar a plataforma</p>
+        <form id="register-form" class="grid-form">
+          <label>Nome
+            <input type="text" id="register-name" required placeholder="Nome completo" />
+          </label>
+          <label>Email
+            <input type="email" id="register-email" required placeholder="seu@email.com" />
+          </label>
+          <label>Senha
+            <input type="password" id="register-password" required minlength="6" placeholder="Mínimo 6 caracteres" />
+          </label>
+          <button type="submit" class="btn primary">Cadastrar</button>
+        </form>
+        <div class="auth-links">
+          <button id="back-to-login" type="button" class="link-btn">Voltar para login</button>
+        </div>
+        <p id="register-message" class="message"></p>
+      </div>
+    </section>
+
+    <section id="main-view" class="view hidden">
+      <header class="topbar">
+        <div>
+          <h2>Painel Financeiro RF7</h2>
+          <p id="user-badge" class="muted"></p>
+        </div>
+        <div class="row gap-sm">
+          <button id="refresh-data" class="btn">Atualizar</button>
+          <button id="logout-btn" class="btn danger">Sair</button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs"></nav>
+
+      <main class="content">
+        <section id="sec-dashboard" class="panel"></section>
+        <section id="sec-atletas" class="panel hidden"></section>
+        <section id="sec-transacoes" class="panel hidden"></section>
+        <section id="sec-penalidades" class="panel hidden"></section>
+        <section id="sec-peladas" class="panel hidden"></section>
+        <section id="sec-relatorios" class="panel hidden"></section>
+        <section id="sec-usuarios" class="panel hidden"></section>
+      </main>
+    </section>
+  </div>
+
+  <template id="readonly-banner-template">
+    <div class="banner warning">
+      Modo visualização ativo: somente Flávio (admin) pode editar registros.
+    </div>
+  </template>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
