@@ -3,8 +3,7 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   onAuthStateChanged,
-  signOut,
-  updateProfile
+  signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {
   getFirestore,
@@ -17,12 +16,12 @@ import {
   deleteDoc,
   setDoc,
   query,
-  where,
   orderBy,
   Timestamp,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: 'AIzaSyANDKaXyI94pDmWlYGNbGX0MU0gf8iDWd0',
   authDomain: 'caixinharf7.firebaseapp.com',
@@ -37,12 +36,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Estado Global
+// Estado Global da Aplicação
 const state = {
   user: null,
   canEdit: false,
-  currentUserRole: 'visualizador',
-  users: [],
   atletas: [],
   transacoes: [],
   peladas: [],
@@ -58,6 +55,7 @@ const state = {
   activeTab: 'dashboard'
 };
 
+// Referências do DOM
 const refs = {
   loginView: document.getElementById('login-view'),
   mainView: document.getElementById('main-view'),
@@ -74,7 +72,7 @@ const refs = {
     penalidades: document.getElementById('sec-penalidades'),
     peladas: document.getElementById('sec-peladas'),
     relatorios: document.getElementById('sec-relatorios'),
-    usuarios: document.getElementById('sec-usuarios')
+    configuracoes: document.getElementById('sec-configuracoes')
   }
 };
 
@@ -84,9 +82,11 @@ const BASE_TAB_ITEMS = [
   { key: 'transacoes', label: 'Transações' },
   { key: 'penalidades', label: 'Penalidades' },
   { key: 'peladas', label: 'Peladas' },
-  { key: 'relatorios', label: 'Relatórios' }
+  { key: 'relatorios', label: 'Relatórios' },
+  { key: 'configuracoes', label: 'Configurações' }
 ];
 
+// Inicialização
 init();
 
 function init() {
@@ -116,35 +116,38 @@ function bindEvents() {
       refs.loginMsg.textContent = "Erro: " + error.message;
     }
   });
+
   refs.logoutBtn.addEventListener('click', () => signOut(auth));
   refs.refreshBtn.addEventListener('click', reloadData);
 }
 
+// Carregamento de Dados
 async function reloadData() {
   if (!state.user) return;
 
-  // 1. Verificar Super Admin por Email
   const email = state.user.email.toLowerCase().trim();
   const admins = ['flavioabdala@yahoo.com.br', 'flavioabdala@gmail.com', 'flavio@rf7.com.br'];
   state.canEdit = admins.includes(email);
 
-  // 2. Carregar Configurações (Preços)
-  const configSnap = await getDoc(doc(db, 'configuracoes', 'financeiro'));
-  if (configSnap.exists()) {
-    state.config = configSnap.data();
+  try {
+    const configSnap = await getDoc(doc(db, 'configuracoes', 'financeiro'));
+    if (configSnap.exists()) {
+      state.config = configSnap.data();
+    }
+
+    const atletasSnap = await getDocs(query(collection(db, 'atletas'), orderBy('nome')));
+    state.atletas = atletasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const transSnap = await getDocs(query(collection(db, 'transacoes'), orderBy('data', 'desc')));
+    state.transacoes = transSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const peladasSnap = await getDocs(query(collection(db, 'peladas'), orderBy('data', 'desc')));
+    state.peladas = peladasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    renderAll();
+  } catch (error) {
+    console.error("Erro ao carregar dados:", error);
   }
-
-  // 3. Carregar Dados do Banco
-  const atletasSnap = await getDocs(query(collection(db, 'atletas'), orderBy('nome')));
-  state.atletas = atletasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-  const transSnap = await getDocs(query(collection(db, 'transacoes'), orderBy('data', 'desc')));
-  state.transacoes = transSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-  const peladasSnap = await getDocs(query(collection(db, 'peladas'), orderBy('data', 'desc')));
-  state.peladas = peladasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-  renderAll();
 }
 
 function renderAll() {
@@ -153,20 +156,20 @@ function renderAll() {
   renderDashboard();
   renderAtletas();
   renderTransacoes();
-  renderPenalidades();
   renderPeladas();
   renderRelatorios();
+  renderConfiguracoes();
   showSection(state.activeTab);
 }
 
 function renderUserBadge() {
   const label = state.canEdit ? 'Admin' : 'Visitante';
-  refs.userBadge.innerHTML = `<strong>${state.user.email}</strong> <span class="badge ${state.canEdit?'admin':''}">${label}</span>`;
+  refs.userBadge.innerHTML = `<strong>${state.user.email}</strong> <span class="badge ${state.canEdit ? 'admin' : ''}">${label}</span>`;
 }
 
 function renderTabs() {
   refs.tabs.innerHTML = BASE_TAB_ITEMS.map(t => `
-    <button class="tab-btn ${state.activeTab===t.key?'active':''}" onclick="changeTab('${t.key}')">${t.label}</button>
+    <button class="tab-btn ${state.activeTab === t.key ? 'active' : ''}" onclick="changeTab('${t.key}')">${t.label}</button>
   `).join('');
 }
 
@@ -176,32 +179,24 @@ window.changeTab = (key) => {
 };
 
 function showSection(key) {
-  Object.keys(refs.sections).forEach(k => refs.sections[k].classList.toggle('hidden', k !== key));
+  Object.keys(refs.sections).forEach(k => {
+    if (refs.sections[k]) refs.sections[k].classList.toggle('hidden', k !== key);
+  });
 }
 
-// --- LÓGICA DE ATLETAS (CATEGORIAS) ---
+// --- ATLETAS ---
 function renderAtletas() {
-  refs.sections.atletas.innerHTML = `
-    <h3>Gestão de Atletas</h3>
-    <form id="ath-form" class="grid-form" style="margin-bottom:20px">
-      <label>Nome <input id="ath-nome" required></label>
-      <label>Categoria 
-        <select id="ath-cat">
-          <option value="linha">Linha (R$ ${state.config.rules.mensalidadeLinha})</option>
-          <option value="goleiro_pagante">Goleiro (R$ ${state.config.rules.mensalidadeGoleiro})</option>
-          <option value="goleiro_isento">Goleiro (Isento)</option>
-        </select>
-      </label>
-      <button type="submit" class="btn primary" ${!state.canEdit?'disabled':''}>Salvar Atleta</button>
-    </form>
+  const container = document.getElementById('atletas-list');
+  container.innerHTML = `
     <table>
-      <thead><tr><th>Nome</th><th>Categoria</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Nome</th><th>Categoria</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>
         ${state.atletas.map(a => `
           <tr>
             <td>${a.nome}</td>
             <td>${a.categoria || 'linha'}</td>
-            <td><button onclick="deleteAtleta('${a.id}')" class="btn small danger">Excluir</button></td>
+            <td>${a.status}</td>
+            <td><button onclick="deleteAtleta('${a.id}')" class="btn small danger" ${!state.canEdit ? 'disabled' : ''}>Excluir</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -212,47 +207,57 @@ function renderAtletas() {
     e.preventDefault();
     const nome = document.getElementById('ath-nome').value;
     const categoria = document.getElementById('ath-cat').value;
-    await addDoc(collection(db, 'atletas'), { nome, categoria, status: 'ativo', createdAt: serverTimestamp() });
+    const status = document.getElementById('ath-status').value;
+
+    await addDoc(collection(db, 'atletas'), { nome, categoria, status, createdAt: serverTimestamp() });
     reloadData();
   };
 }
 
 window.deleteAtleta = async (id) => {
-  if(confirm('Excluir atleta?')) { await deleteDoc(doc(db, 'atletas', id)); reloadData(); }
+  if (confirm('Deseja excluir este atleta?')) {
+    await deleteDoc(doc(db, 'atletas', id));
+    reloadData();
+  }
 };
 
-// --- LÓGICA DE TRANSAÇÕES (MENSALIDADE AUTOMÁTICA) ---
+// --- TRANSAÇÕES (MENSALIDADES) ---
 function renderTransacoes() {
-  refs.sections.transacoes.innerHTML = `
-    <div class="grid-2">
-      <article class="panel">
-        <h4>1. Gerar Débitos do Mês</h4>
-        <p class="muted">Isso cria a dívida para todos os atletas ativos.</p>
-        <input type="month" id="gen-month" value="${new Date().toISOString().slice(0,7)}">
-        <button onclick="gerarMensalidades()" class="btn primary">Gerar para Todos</button>
-      </article>
+  const selectAth = document.getElementById('pay-ath');
+  selectAth.innerHTML = state.atletas.map(a => `<option value="${a.id}">${a.nome}</option>`).join('');
 
-      <article class="panel">
-        <h4>2. Registrar Pagamento</h4>
-        <form id="pay-form" class="grid-form">
-          <select id="pay-ath">${state.atletas.map(a=>`<option value="${a.id}">${a.nome}</option>`)}</select>
-          <input type="month" id="pay-month" required>
-          <input type="number" id="pay-val" placeholder="Valor pago" required>
-          <button type="submit" class="btn primary">Baixar Mensalidade</button>
-        </form>
-      </article>
-    </div>
+  const container = document.getElementById('transacoes-list');
+  container.innerHTML = `
+    <h4>Histórico Recente</h4>
+    <table>
+      <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Tipo</th></tr></thead>
+      <tbody>
+        ${state.transacoes.slice(0, 15).map(t => `
+          <tr>
+            <td>${t.data?.toDate().toLocaleDateString() || '-'}</td>
+            <td>${t.descricao}</td>
+            <td>R$ ${t.valor.toFixed(2)}</td>
+            <td style="color:${t.direcao === 'entrada' ? 'green' : (t.direcao === 'saida' ? 'red' : 'gray')}">
+              ${t.direcao === 'entrada' ? 'Entrada' : (t.direcao === 'saida' ? 'Saída' : 'Débito')}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   `;
+
+  document.getElementById('btn-gerar-mes').onclick = gerarMensalidades;
 
   document.getElementById('pay-form').onsubmit = async (e) => {
     e.preventDefault();
     const athId = document.getElementById('pay-ath').value;
     const month = document.getElementById('pay-month').value;
     const valor = Number(document.getElementById('pay-val').value);
+    const atleta = state.atletas.find(a => a.id === athId);
 
     await addDoc(collection(db, 'transacoes'), {
       atletaId: athId,
-      atletaNome: state.atletas.find(a=>a.id===athId).nome,
+      atletaNome: atleta.nome,
       categoria: 'mensalidade_pagamento',
       descricao: `Pagamento Mensalidade ${month}`,
       valor: valor,
@@ -265,11 +270,12 @@ function renderTransacoes() {
   };
 }
 
-window.gerarMensalidades = async () => {
+async function gerarMensalidades() {
   const mes = document.getElementById('gen-month').value;
-  if(!confirm(`Gerar débitos para ${mes}?`)) return;
+  if (!mes || !confirm(`Gerar débitos de ${mes} para todos os ativos?`)) return;
 
-  for (let a of state.atletas) {
+  const ativos = state.atletas.filter(a => a.status === 'ativo');
+  for (let a of ativos) {
     let valor = 0;
     if (a.categoria === 'linha') valor = state.config.rules.mensalidadeLinha;
     else if (a.categoria === 'goleiro_pagante') valor = state.config.rules.mensalidadeGoleiro;
@@ -288,20 +294,47 @@ window.gerarMensalidades = async () => {
       });
     }
   }
-  alert('Mensalidades geradas com sucesso!');
+  alert('Débitos gerados!');
   reloadData();
-};
+}
 
-// --- RELATÓRIOS CORRIGIDOS ---
+// --- PELADAS ---
+function renderPeladas() {
+  document.getElementById('btn-lancar-pelada').onclick = async () => {
+    const custo = state.config.rules.custoPelada;
+    const juiz = state.config.rules.pagamentoGilberto;
+
+    await addDoc(collection(db, 'transacoes'), {
+      categoria: 'custo_pelada',
+      valor: custo,
+      direcao: 'saida',
+      efeitoAtleta: 'none',
+      descricao: 'Aluguel Quadra',
+      data: Timestamp.now()
+    });
+    await addDoc(collection(db, 'transacoes'), {
+      categoria: 'pagamento_gilberto',
+      valor: juiz,
+      direcao: 'saida',
+      efeitoAtleta: 'none',
+      descricao: 'Pagamento Juiz',
+      data: Timestamp.now()
+    });
+    alert('Saídas de Pelada e Juiz lançadas!');
+    reloadData();
+  };
+}
+
+// --- DASHBOARD E RELATÓRIOS ---
 function renderDashboard() {
   const entradas = state.transacoes.filter(t => t.direcao === 'entrada').reduce((a, b) => a + b.valor, 0);
   const saidas = state.transacoes.filter(t => t.direcao === 'saida').reduce((a, b) => a + b.valor, 0);
-  
+
   refs.sections.dashboard.innerHTML = `
     <div class="stats">
-      <div class="stat-card"><h4>Saldo em Caixa</h4><strong>R$ ${entradas - saidas}</strong></div>
-      <div class="stat-card"><h4>Total Entradas</h4><strong>R$ ${entradas}</strong></div>
-      <div class="stat-card"><h4>Total Saídas</h4><strong>R$ ${saidas}</strong></div>
+      <div class="stat-card"><h4>Saldo em Caixa</h4><strong>R$ ${(entradas - saidas).toFixed(2)}</strong></div>
+      <div class="stat-card"><h4>Entradas</h4><strong style="color:green">R$ ${entradas.toFixed(2)}</strong></div>
+      <div class="stat-card"><h4>Saídas</h4><strong style="color:red">R$ ${saidas.toFixed(2)}</strong></div>
     </div>
   `;
 }
@@ -314,15 +347,15 @@ function renderRelatorios() {
   });
 
   refs.sections.relatorios.innerHTML = `
-    <h3>Resumo de Dívidas (Atletas)</h3>
+    <h3>Dívidas Pendentes</h3>
     <table>
-      <thead><tr><th>Atleta</th><th>Status</th></tr></thead>
+      <thead><tr><th>Atleta</th><th>Status Financeiro</th></tr></thead>
       <tbody>
         ${saldos.map(s => `
           <tr>
             <td>${s.nome}</td>
-            <td style="color:${s.saldo > 0 ? 'red' : 'green'}">
-              ${s.saldo > 0 ? `Deve R$ ${s.saldo}` : 'Em dia'}
+            <td style="color:${s.saldo > 0 ? 'red' : 'green'}; font-weight:bold">
+              ${s.saldo > 0 ? `Deve R$ ${s.saldo.toFixed(2)}` : 'Em dia'}
             </td>
           </tr>
         `).join('')}
@@ -331,88 +364,19 @@ function renderRelatorios() {
   `;
 }
 
-// Funções de ajuda
-function money(v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-
-// Renderização das demais seções (simplificadas para o exemplo)
-function renderPenalidades() { refs.sections.penalidades.innerHTML = "<h4>Penalidades</h4> (Implementar similar a Transações)"; }
-function renderPeladas() { 
-  refs.sections.peladas.innerHTML = `
-    <h4>Registrar Pelada</h4>
-    <button onclick="lancarPelada()" class="btn primary">Lançar Pelada Hoje</button>
-  `;
-}
-
-window.lancarPelada = async () => {
-    const custo = state.config.rules.custoPelada;
-    const juiz = state.config.rules.pagamentoGilberto;
-    
-    // Lança a saída do aluguel
-    await addDoc(collection(db, 'transacoes'), {
-        categoria: 'custo_pelada',
-        valor: custo,
-        direcao: 'saida',
-        efeitoAtleta: 'none', // Não afeta dívida de ninguém
-        descricao: 'Aluguel Quadra',
-        data: Timestamp.now()
-    });
-    // Lança a saída do juiz
-    await addDoc(collection(db, 'transacoes'), {
-        categoria: 'pagamento_gilberto',
-        valor: juiz,
-        direcao: 'saida',
-        efeitoAtleta: 'none',
-        descricao: 'Pagamento Juiz',
-        data: Timestamp.now()
-    });
-    alert('Pelada e Juiz lançados como SAÍDA!');
-    reloadData();
-}
-// 1. Atualize a lista de abas para incluir Configurações
-const BASE_TAB_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'atletas', label: 'Atletas' },
-  { key: 'transacoes', label: 'Transações' },
-  { key: 'penalidades', label: 'Penalidades' },
-  { key: 'peladas', label: 'Peladas' },
-  { key: 'relatorios', label: 'Relatórios' },
-  { key: 'configuracoes', label: 'Configurações' } // Nova aba
-];
-
-// 2. Adicione a referência da nova seção no objeto 'refs'
-// (Dentro de refs.sections)
-// configuracoes: document.getElementById('sec-configuracoes')
-
-// 3. Adicione a função de renderização da aba
+// --- CONFIGURAÇÕES ---
 function renderConfiguracoes() {
   if (!state.canEdit) {
-    refs.sections.configuracoes.innerHTML = `<h3>Configurações</h3><p class="muted">Acesso restrito ao administrador.</p>`;
+    refs.sections.configuracoes.innerHTML = `<p>Acesso restrito ao administrador.</p>`;
     return;
   }
 
-  refs.sections.configuracoes.innerHTML = `
-    <h3>Configurações do Sistema</h3>
-    <p class="muted">Ajuste os valores base para cálculos automáticos.</p>
-    
-    <form id="config-form" class="card panel grid-form">
-      <label>Mensalidade Linha (R$)
-        <input type="number" id="cfg-lin" value="${state.config.rules.mensalidadeLinha}">
-      </label>
-      <label>Mensalidade Goleiro (R$)
-        <input type="number" id="cfg-gol" value="${state.config.rules.mensalidadeGoleiro}">
-      </label>
-      <label>Custo da Pelada (Aluguel R$)
-        <input type="number" id="cfg-pel" value="${state.config.rules.custoPelada}">
-      </label>
-      <label>Pagamento Juiz (R$)
-        <input type="number" id="cfg-juiz" value="${state.config.rules.pagamentoGilberto}">
-      </label>
-      <label>Tesoureiros (separe por vírgula)
-        <input type="text" id="cfg-tes" value="${state.config.rules.tesoureiros.join(', ')}">
-      </label>
-      <button type="submit" class="btn primary">Salvar Alterações</button>
-    </form>
-  `;
+  // Preencher os campos com os valores atuais
+  document.getElementById('cfg-lin').value = state.config.rules.mensalidadeLinha;
+  document.getElementById('cfg-gol').value = state.config.rules.mensalidadeGoleiro;
+  document.getElementById('cfg-pel').value = state.config.rules.custoPelada;
+  document.getElementById('cfg-juiz').value = state.config.rules.pagamentoGilberto;
+  document.getElementById('cfg-tes').value = state.config.rules.tesoureiros.join(', ');
 
   document.getElementById('config-form').onsubmit = async (e) => {
     e.preventDefault();
@@ -424,14 +388,8 @@ function renderConfiguracoes() {
       tesoureiros: document.getElementById('cfg-tes').value.split(',').map(t => t.trim())
     };
 
-    try {
-      await setDoc(doc(db, 'configuracoes', 'financeiro'), { rules: newRules, updatedAt: serverTimestamp() });
-      alert('Configurações atualizadas com sucesso!');
-      await reloadData();
-    } catch (error) {
-      alert('Erro ao salvar: ' + error.message);
-    }
+    await setDoc(doc(db, 'configuracoes', 'financeiro'), { rules: newRules, updatedAt: serverTimestamp() });
+    alert('Configurações salvas!');
+    reloadData();
   };
 }
-
-// 4. Não esqueça de chamar renderConfiguracoes() dentro da sua função renderAll()
